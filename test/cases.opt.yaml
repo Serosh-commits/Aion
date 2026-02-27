@@ -1,0 +1,156 @@
+--- !Missed
+Pass:            inline
+Name:            NeverInline
+DebugLoc:        { File: 'test/cases.cpp', Line: 15, Column: 12 }
+Function:        _Z10use_squarei
+Args:
+  - String:          ''''
+  - Callee:          _Z6squarei
+    DebugLoc:        { File: 'test/cases.cpp', Line: 10, Column: 0 }
+  - String:          ''' not inlined into '''
+  - Caller:          _Z10use_squarei
+    DebugLoc:        { File: 'test/cases.cpp', Line: 14, Column: 0 }
+  - String:          ''' because it should never be inlined '
+  - String:          '(cost=never)'
+  - String:          ': '
+  - Reason:          noinline function attribute
+...
+--- !Missed
+Pass:            inline
+Name:            NeverInline
+DebugLoc:        { File: 'test/cases.cpp', Line: 15, Column: 24 }
+Function:        _Z10use_squarei
+Args:
+  - String:          ''''
+  - Callee:          _Z6squarei
+    DebugLoc:        { File: 'test/cases.cpp', Line: 10, Column: 0 }
+  - String:          ''' not inlined into '''
+  - Caller:          _Z10use_squarei
+    DebugLoc:        { File: 'test/cases.cpp', Line: 14, Column: 0 }
+  - String:          ''' because it should never be inlined '
+  - String:          '(cost=never)'
+  - String:          ': '
+  - Reason:          noinline function attribute
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'test/cases.cpp', Line: 31, Column: 12 }
+Function:        _Z10slp_missedPfS_S_
+Args:
+  - String:          'load of type '
+  - Type:            float
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     store
+    DebugLoc:        { File: 'test/cases.cpp', Line: 30, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'test/cases.cpp', Line: 31, Column: 19 }
+Function:        _Z10slp_missedPfS_S_
+Args:
+  - String:          'load of type '
+  - Type:            float
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     store
+    DebugLoc:        { File: 'test/cases.cpp', Line: 30, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'test/cases.cpp', Line: 32, Column: 12 }
+Function:        _Z10slp_missedPfS_S_
+Args:
+  - String:          'load of type '
+  - Type:            float
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     store
+    DebugLoc:        { File: 'test/cases.cpp', Line: 31, Column: 10 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'test/cases.cpp', Line: 32, Column: 19 }
+Function:        _Z10slp_missedPfS_S_
+Args:
+  - String:          'load of type '
+  - Type:            float
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     store
+    DebugLoc:        { File: 'test/cases.cpp', Line: 31, Column: 10 }
+...
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'test/cases.cpp', Line: 39, Column: 5 }
+Function:        _Z9sroa_failv
+Args:
+  - Callee:          _Z6escapePi
+    DebugLoc:        { File: 'test/cases.cpp', Line: 0, Column: 0 }
+  - String:          ' will not be inlined into '
+  - Caller:          _Z9sroa_failv
+    DebugLoc:        { File: 'test/cases.cpp', Line: 37, Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
+--- !Analysis
+Pass:            loop-vectorize
+Name:            UnsafeDep
+DebugLoc:        { File: 'test/cases.cpp', Line: 4, Column: 14 }
+Function:        _Z15loop_dependencyPiS_i
+Args:
+  - String:          'loop not vectorized: '
+  - String:          'unsafe dependent memory operations in loop. Use #pragma clang loop distribute(enable) to allow loop distribution to attempt to isolate the offending operations into a separate loop'
+  - String:          "\nBackward loop carried data dependence."
+  - String:          ' Memory location is the same as accessed at '
+  - Location:        'test/cases.cpp:4:16'
+    DebugLoc:        { File: 'test/cases.cpp', Line: 4, Column: 16 }
+...
+--- !Missed
+Pass:            loop-vectorize
+Name:            MissedDetails
+DebugLoc:        { File: 'test/cases.cpp', Line: 3, Column: 5 }
+Function:        _Z15loop_dependencyPiS_i
+Args:
+  - String:          loop not vectorized
+...
+--- !Passed
+Pass:            loop-unroll
+Name:            PartialUnrolled
+DebugLoc:        { File: 'test/cases.cpp', Line: 3, Column: 5 }
+Function:        _Z15loop_dependencyPiS_i
+Args:
+  - String:          'unrolled loop by a factor of '
+  - UnrollCount:     '4'
+  - String:          ' with run-time trip count'
+...
+--- !Analysis
+Pass:            loop-vectorize
+Name:            NonReductionValueUsedOutsideLoop
+DebugLoc:        { File: 'test/cases.cpp', Line: 21, Column: 5 }
+Function:        _Z14loop_with_exitPiii
+Args:
+  - String:          'loop not vectorized: '
+  - String:          value that could not be identified as reduction is used outside the loop
+...
+--- !Analysis
+Pass:            loop-vectorize
+Name:            PotentiallyFaultingEarlyExitLoop
+DebugLoc:        { File: 'test/cases.cpp', Line: 21, Column: 5 }
+Function:        _Z14loop_with_exitPiii
+Args:
+  - String:          'loop not vectorized: '
+  - String:          Cannot vectorize potentially faulting early exit loop
+...
+--- !Missed
+Pass:            loop-vectorize
+Name:            MissedDetails
+DebugLoc:        { File: 'test/cases.cpp', Line: 21, Column: 5 }
+Function:        _Z14loop_with_exitPiii
+Args:
+  - String:          loop not vectorized
+...
