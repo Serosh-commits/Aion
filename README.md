@@ -2,9 +2,10 @@
   <img src="assets/logo.png" alt="Aion Logo" width="160">
 </div>
 
-
+YEAH I AM TOO LAZY TO MAKE A LOGO 
 
 Aion is a diagnostic engine designed to bridge the gap between high-level language abstractions and the LLVM optimization pipeline. By correlating optimization remarks with multi-context IR analysis, Aion provides technical explanations and actionable resolutions for compiler failure points.
+
 
 This tool implements O(N) diagnostic lookup, stable basic-block identity tracking, and standardized regression metrics to ensure reliability for systems engineers.
 
