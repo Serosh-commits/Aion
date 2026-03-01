@@ -43,6 +43,7 @@ struct Remark {
   std::string Message;
   std::vector<RemarkArgument> Args;
   std::optional<float> Hotness;
+  bool IsMachine = false;
 
   bool isMissed() const { return Kind == RemarkKind::Missed; }
   bool isApplied() const { return Kind == RemarkKind::Applied; }
