@@ -87,6 +87,37 @@ Remark RemarkCollectorHandler::convertRemark(
   return R;
 }
 
+// translates an llvm resource limit diagnostic (like stack size) into a unified remark
+Remark RemarkCollectorHandler::convertRemark(
+    const llvm::DiagnosticInfoResourceLimit &DI) {
+  Remark R;
+  R.Kind = RemarkKind::Analysis;
+  R.IsMachine = true;
+  R.PassName = "backend";
+  R.RemarkName = DI.getResourceName();
+  R.FunctionName = DI.getFunction().getName().str();
+
+  std::string Msg;
+  {
+    llvm::raw_string_ostream OS(Msg);
+    llvm::DiagnosticPrinterRawOStream DP(OS);
+    DI.print(DP);
+  }
+  R.Message = Msg;
+
+  RemarkArgument SizeArg;
+  SizeArg.Key = "Size";
+  SizeArg.Value = std::to_string(DI.getResourceSize());
+  R.Args.push_back(std::move(SizeArg));
+
+  RemarkArgument LimitArg;
+  LimitArg.Key = "Limit";
+  LimitArg.Value = std::to_string(DI.getResourceLimit());
+  R.Args.push_back(std::move(LimitArg));
+
+  return R;
+}
+
 // hooks into llvm's diagnostic stream to filter and capture relevant optimization remarks
 bool RemarkCollectorHandler::handleDiagnostics(
     const llvm::DiagnosticInfo &DI) {
@@ -102,15 +133,20 @@ bool RemarkCollectorHandler::handleDiagnostics(
       Kind == llvm::DK_MachineOptimizationRemarkMissed ||
       Kind == llvm::DK_MachineOptimizationRemarkAnalysis;
 
-  if (!IsOptRemark)
+  bool IsResourceLimit = (Kind == llvm::DK_ResourceLimit ||
+                          Kind == llvm::DK_StackSize);
+
+  if (!IsOptRemark && !IsResourceLimit)
     return false;
 
-  const auto *OptDI =
-      llvm::dyn_cast<llvm::DiagnosticInfoOptimizationBase>(&DI);
-  if (!OptDI)
+  Remark R;
+  if (const auto *OptDI = llvm::dyn_cast<llvm::DiagnosticInfoOptimizationBase>(&DI)) {
+    R = convertRemark(*OptDI);
+  } else if (const auto *ResDI = llvm::dyn_cast<llvm::DiagnosticInfoResourceLimit>(&DI)) {
+    R = convertRemark(*ResDI);
+  } else {
     return false;
-
-  Remark R = convertRemark(*OptDI);
+  }
 
   std::lock_guard<std::mutex> Guard(Mutex);
   CollectedRemarks.push_back(std::move(R));

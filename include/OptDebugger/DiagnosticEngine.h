@@ -38,6 +38,7 @@ struct DiagnosticResult {
   SeverityLevel             Severity;
   std::optional<FunctionDiff> IRDiff;
   double                    EstimatedSpeedup;
+  bool                      IsMachine = false;
 
   bool hasFix() const { return !Suggestions.empty(); }
 };

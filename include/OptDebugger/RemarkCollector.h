@@ -22,6 +22,7 @@ private:
   static SourceLocation convertLocation(const llvm::DiagnosticLocation &Loc);
   static std::string buildMessage(const llvm::DiagnosticInfoOptimizationBase &DI);
   Remark convertRemark(const llvm::DiagnosticInfoOptimizationBase &DI);
+  Remark convertRemark(const llvm::DiagnosticInfoResourceLimit &DI);
 };
 
 class RemarkCollector {
