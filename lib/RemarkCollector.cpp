@@ -45,11 +45,17 @@ Remark RemarkCollectorHandler::convertRemark(
   Remark R;
 
   unsigned Kind = DI.getKind();
-  if (Kind == llvm::DK_OptimizationRemark)
+  bool IsMachine = (Kind >= llvm::DK_MachineOptimizationRemark &&
+                    Kind <= llvm::DK_MachineOptimizationRemarkAnalysis);
+
+  if (Kind == llvm::DK_OptimizationRemark ||
+      Kind == llvm::DK_MachineOptimizationRemark)
     R.Kind = RemarkKind::Applied;
-  else if (Kind == llvm::DK_OptimizationRemarkMissed)
+  else if (Kind == llvm::DK_OptimizationRemarkMissed ||
+           Kind == llvm::DK_MachineOptimizationRemarkMissed)
     R.Kind = RemarkKind::Missed;
-  else if (Kind == llvm::DK_OptimizationRemarkAnalysis)
+  else if (Kind == llvm::DK_OptimizationRemarkAnalysis ||
+           Kind == llvm::DK_MachineOptimizationRemarkAnalysis)
     R.Kind = RemarkKind::Analysis;
   else if (Kind == llvm::DK_OptimizationRemarkAnalysisAliasing)
     R.Kind = RemarkKind::AnalysisAliasing;
@@ -57,6 +63,8 @@ Remark RemarkCollectorHandler::convertRemark(
     R.Kind = RemarkKind::AnalysisFPCommute;
   else
     R.Kind = RemarkKind::Analysis;
+
+  R.IsMachine = IsMachine;
 
   R.PassName    = DI.getPassName().str();
   R.RemarkName  = DI.getRemarkName().str();
@@ -89,7 +97,10 @@ bool RemarkCollectorHandler::handleDiagnostics(
       Kind == llvm::DK_OptimizationRemarkMissed ||
       Kind == llvm::DK_OptimizationRemarkAnalysis ||
       Kind == llvm::DK_OptimizationRemarkAnalysisAliasing ||
-      Kind == llvm::DK_OptimizationRemarkAnalysisFPCommute;
+      Kind == llvm::DK_OptimizationRemarkAnalysisFPCommute ||
+      Kind == llvm::DK_MachineOptimizationRemark ||
+      Kind == llvm::DK_MachineOptimizationRemarkMissed ||
+      Kind == llvm::DK_MachineOptimizationRemarkAnalysis;
 
   if (!IsOptRemark)
     return false;
