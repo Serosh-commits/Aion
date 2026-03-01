@@ -714,6 +714,7 @@ DiagnosticEngine::buildFromPattern(const Remark              &R,
   DR.Suggestions       = P.Suggestions;
   DR.Severity          = P.Severity;
   DR.EstimatedSpeedup  = P.EstimatedSpeedup;
+  DR.IsMachine         = R.IsMachine;
   return DR;
 }
 
@@ -736,6 +737,7 @@ DiagnosticEngine::buildFallback(const Remark &R) const {
                            "transformation that was blocked by a precondition.";
   DR.Severity            = SeverityLevel::Medium;
   DR.EstimatedSpeedup    = 0.0;
+  DR.IsMachine           = R.IsMachine;
   return DR;
 }
 

@@ -163,7 +163,13 @@ void TerminalReporter::printDiagnosticHeader(const DiagnosticResult &D) {
 
   if (Cfg.UseColor) OS.resetColor();
 
-  OS << "  Pass     : " << D.PassName << "\n";
+  OS << "  Pass     : " << D.PassName;
+  if (D.IsMachine) {
+    if (Cfg.UseColor) OS.changeColor(llvm::raw_ostream::YELLOW);
+    OS << " [BACKEND]";
+    if (Cfg.UseColor) OS.resetColor();
+  }
+  OS << "\n";
   OS << "  Function : @" << D.FunctionName << "\n";
 
   if (D.Location.isValid())
@@ -597,7 +603,9 @@ void HTMLReporter::emitDiagnostic(const DiagnosticResult &D,
   
   OS << "  <div class=\"card-body\">\n";
   
-  OS << "    <div class=\"label-group\">\n";
+    OS << "    <div class=\"label-group\">\n";
+  if (D.IsMachine)
+    OS << "      <div class=\"label\" style=\"background:var(--cobalt);color:white\">BACKEND</div>\n";
   OS << "      <div class=\"label\">" << escapeHTML(D.PassName) << "</div>\n";
   OS << "      <div class=\"label\">@" << escapeHTML(D.FunctionName) << "</div>\n";
   if (D.EstimatedSpeedup > 0.1) {
