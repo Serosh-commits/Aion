@@ -3,6 +3,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <algorithm>
+#include <cmath>
 #include <regex>
 #include <sstream>
 
@@ -39,6 +40,8 @@ void DiagnosticEngine::registerPatterns() {
   registerGVNPatterns();
   registerMemCpyOptPatterns();
   registerLoopInterchangePatterns();
+  registerMachinePatterns();
+  registerPGOPatterns();
   registerGenericPatterns();
 }
 
@@ -640,6 +643,91 @@ void DiagnosticEngine::registerGenericPatterns() {
   });
 }
 
+void DiagnosticEngine::registerMachinePatterns() {
+  Patterns.push_back({
+      "regalloc", "Spill", "",
+      "High Register Pressure: Multiple spills detected",
+      "The register allocator could not find enough physical registers to hold "
+      "all live values simultaneously. This forced the compiler to 'spill' "
+      "values to the stack, inserting extra memory load/store instructions in "
+      "the function body. Spills are significantly slower than register access "
+      "and can bottleneck hot loops.",
+      "The function contains more live variables than available registers on "
+      "the target architecture.",
+      "The backend wanted to keep all values in registers for maximum speed, "
+      "but was forced to use the stack for overflow storage.",
+      {
+        makeFix("Reduce the scope of local variables to shorten their live ranges"),
+        makeFix("Hoisted invariant expressions out of loops to reduce register pressure inside the loop body"),
+        makeFix("Consider splitting the function into smaller components if it has extremely high complexity"),
+      },
+      SeverityLevel::High, 0.8
+  });
+
+  Patterns.push_back({
+      "prologepilog", "StackSize", "",
+      "Excessive Stack Frame Size recorded",
+      "The function requires a large stack frame, which can impact cache locality "
+      "and result in stack overflow in multi-threaded environments. This often "
+      "happens when large arrays or structures are allocated on the stack "
+      "instead of the heap.",
+      "Large local buffers or recursive calls are consuming stack space.",
+      "The backend needs to allocate a significant memory block for the function "
+      "prologue/epilogue sequence.",
+      {
+        makeFix("Move large local arrays to the heap or use a static buffer if thread-safety is not a concern"),
+        makeFix("Verify if deep recursion is necessary and consider converting to an iterative loop"),
+      },
+      SeverityLevel::Medium, 0.1
+  });
+}
+
+void DiagnosticEngine::registerPGOPatterns() {
+  Patterns.push_back({
+      "pgo-icall-prom", "NotInlined", "",
+      "PGO-driven devirtualization target found",
+      "This indirect call site is identified as 'hot' by PGO data, but it "
+      "has not been fully promoted to a direct call or inlined. Devirtualizing "
+      "this call could yield significant performance gains by eliminating the "
+      "indirect branch overhead and enabling subsequent inlining. "
+      "The actual hotness recorded for this call is {Hotness}.",
+      "A hot indirect call site was detected via profiling, but it was not "
+      "automatically devirtualized by the optimizer.",
+      "The optimizer wanted to speculatively promote this indirect call to "
+      "a direct call to the most frequent callee, then inline that callee.",
+      {
+        makeFix("If this is a virtual method, consider using final / override "
+                "to encourage devirtualization"),
+        makeFix("Explicitly use a switch/case on the most frequent callee types "
+                "to manually 'inline' the dispatch"),
+        makeFix("Identify why IndirectCallPromotion failed: check if the "
+                "callee is visible or if the threshold is too low"),
+      },
+      SeverityLevel::Critical, 2.5
+  });
+
+  Patterns.push_back({
+      "pgo-instr-use", "Mismatch", "",
+      "PGO Metadata Mismatch: Local profile data stale",
+      "The compiler found a discrepancy between the provided profile data and "
+      "the current control-flow graph (CFG). This usually happens when the "
+      "source code has changed significantly since the profile was collected. "
+      "LLVM may ignore profile data for functions with serious mismatches, "
+      "reverting to less accurate static heuristics.",
+      "The CFG of the function has changed, making the recorded profile "
+      "unreliable or unusable.",
+      "The optimizer wanted to use the profile data for branch weighting and "
+      "basic-block placement for maximum throughput.",
+      {
+        makeFix("Gather new profile data: re-run the training workload and "
+                "re-export the .profdata file"),
+        makeFix("Ensure you are using the exact same commit for training and "
+                "deployment builds"),
+      },
+      SeverityLevel::High, 0.2
+  });
+}
+
 // executes an o(n) heuristic search against the registered pattern database to classify a raw remark
 const OptimizationPattern *
 DiagnosticEngine::findMatchingPattern(const Remark &R) const {
@@ -686,6 +774,8 @@ std::string DiagnosticEngine::interpolateArgs(const std::string &Template,
     size_t Pos = Result.find(Placeholder);
     while (Pos != std::string::npos) {
       Result.replace(Pos, Placeholder.size(), Arg.Value);
+      // skip ahead by the size of the replacement to prevent infinite
+      // recursion if Arg.Value contains the Placeholder string
       Pos = Result.find(Placeholder, Pos + Arg.Value.size());
     }
   }
@@ -694,6 +784,17 @@ std::string DiagnosticEngine::interpolateArgs(const std::string &Template,
   while (FnPos != std::string::npos) {
     Result.replace(FnPos, 14, R.FunctionName);
     FnPos = Result.find("{FunctionName}", FnPos + R.FunctionName.size());
+  }
+
+  if (R.Hotness) {
+    char HotnessBuf[32];
+    std::snprintf(HotnessBuf, sizeof(HotnessBuf), "%.1f", *R.Hotness);
+    std::string HotnessStr = HotnessBuf;
+    size_t HotPos = Result.find("{Hotness}");
+    while (HotPos != std::string::npos) {
+      Result.replace(HotPos, 9, HotnessStr);
+      HotPos = Result.find("{Hotness}", HotPos + HotnessStr.size());
+    }
   }
 
   return Result;
@@ -714,7 +815,15 @@ DiagnosticEngine::buildFromPattern(const Remark              &R,
   DR.Suggestions       = P.Suggestions;
   DR.Severity          = P.Severity;
   DR.EstimatedSpeedup  = P.EstimatedSpeedup;
+  DR.Hotness           = R.Hotness;
   DR.IsMachine         = R.IsMachine;
+
+  // Weighted Impact Score: Scale static speedup by PGO hotness if available.
+  // This helps prioritize optimizations in the most critical code paths.
+  if (R.Hotness && std::isfinite(*R.Hotness)) {
+    DR.EstimatedSpeedup *= (*R.Hotness);
+  }
+
   return DR;
 }
 
@@ -737,7 +846,24 @@ DiagnosticEngine::buildFallback(const Remark &R) const {
                            "transformation that was blocked by a precondition.";
   DR.Severity            = SeverityLevel::Medium;
   DR.EstimatedSpeedup    = 0.0;
+  DR.Hotness             = R.Hotness;
   DR.IsMachine           = R.IsMachine;
+  return DR;
+}
+
+// implementation of public single-remark analysis api with ir context
+DiagnosticResult
+DiagnosticEngine::analyzeRemark(const Remark &R, const ModuleDiff &Diff) const {
+  DiagnosticResult DR = analyzeRemark(R);
+
+  // attempt to correlate with structural diff data for the specific function
+  for (const FunctionDiff &FD : Diff.Functions) {
+    if (FD.FunctionName == R.FunctionName) {
+      DR.IRDiff = FD;
+      break;
+    }
+  }
+
   return DR;
 }
 
@@ -774,8 +900,18 @@ DiagnosticEngine::analyze(const std::vector<Remark> &Remarks,
   }
 
 
+  // sort diagnostics by their projected performance impact (EstimatedSpeedup)
+  // this ensures that the most critical, PGO-weighted bottlenecks appear first
+  // sort diagnostics by their projected performance impact (Impact Score)
   std::stable_sort(Results.begin(), Results.end(),
                    [](const DiagnosticResult &A, const DiagnosticResult &B) {
+                     double ScoreA = std::isfinite(A.EstimatedSpeedup) ? A.EstimatedSpeedup : -1.0;
+                     double ScoreB = std::isfinite(B.EstimatedSpeedup) ? B.EstimatedSpeedup : -1.0;
+
+                     if (ScoreA != ScoreB)
+                       return ScoreA > ScoreB;
+                     
+                     // Tie-breaker: Use severity level (lower enum value is higher severity)
                      return static_cast<int>(A.Severity) <
                             static_cast<int>(B.Severity);
                    });

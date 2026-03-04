@@ -157,7 +157,8 @@ bool RemarkCollectorHandler::handleDiagnostics(
 void RemarkCollector::install(llvm::LLVMContext &Ctx) {
   Ctx.setDiagnosticHandler(
       std::make_unique<RemarkCollectorHandler>(Remarks));
-  Ctx.setDiagnosticsHotnessRequested(false);
+  // Requesting hotness data from LLVM's Profile-Guided Optimization suite hotness will really rise up i think :)
+  Ctx.setDiagnosticsHotnessRequested(true);
 }
 
 // filters collected remarks to return only missed optimizations
