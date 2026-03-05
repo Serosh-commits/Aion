@@ -87,6 +87,10 @@ private:
   void registerGVNPatterns();
   void registerMemCpyOptPatterns();
   void registerLoopInterchangePatterns();
+  void registerLoopAccessPatterns();
+  void registerDevirtPatterns();
+  void registerArgPromotionPatterns();
+  void registerJumpThreadingPatterns();
   void registerMachinePatterns();
   void registerPGOPatterns();
   void registerGenericPatterns();
