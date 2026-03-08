@@ -34,9 +34,13 @@ std::string IRDiffEngine::getInstructionText(const llvm::Instruction &I) {
   I.print(OS);
   OS.flush();
   std::string Result = S;
-  size_t Pos = Result.find_first_not_of(' ');
-  if (Pos != std::string::npos)
-    Result = Result.substr(Pos);
+  size_t Start = Result.find_first_not_of(" \t\r\n");
+  if (Start == std::string::npos)
+    return "";
+  Result = Result.substr(Start);
+  size_t End = Result.find_last_not_of(" \t\r\n");
+  if (End != std::string::npos)
+    Result = Result.substr(0, End + 1);
   return Result;
 }
 
