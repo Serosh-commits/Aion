@@ -1,0 +1,26 @@
+--- !Missed
+Pass:            loop-vectorize
+Name:            VectorizationNotBeneficial
+DebugLoc:        { File: 'test/vectorize/vect_pointer_iv.c', Line: 1, Column: 29 }
+Function:        test
+Args:
+  - String:          the cost-model indicates that vectorization is not beneficial
+...
+--- !Missed
+Pass:            loop-vectorize
+Name:            InterleavingNotBeneficial
+DebugLoc:        { File: 'test/vectorize/vect_pointer_iv.c', Line: 1, Column: 29 }
+Function:        test
+Args:
+  - String:          the cost-model indicates that interleaving is not beneficial
+...
+--- !Passed
+Pass:            loop-unroll
+Name:            PartialUnrolled
+DebugLoc:        { File: 'test/vectorize/vect_pointer_iv.c', Line: 1, Column: 29 }
+Function:        test
+Args:
+  - String:          'unrolled loop by a factor of '
+  - UnrollCount:     '8'
+  - String:          ' with run-time trip count'
+...

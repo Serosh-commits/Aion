@@ -1,0 +1,39 @@
+--- !Missed
+Pass:            loop-vectorize
+Name:            VectorizationNotBeneficial
+DebugLoc:        { File: 'test/vectorize/vect_integer_division.c', Line: 1, 
+                   Column: 36 }
+Function:        test
+Args:
+  - String:          the cost-model indicates that vectorization is not beneficial
+...
+--- !Missed
+Pass:            loop-vectorize
+Name:            InterleavingNotBeneficial
+DebugLoc:        { File: 'test/vectorize/vect_integer_division.c', Line: 1, 
+                   Column: 36 }
+Function:        test
+Args:
+  - String:          the cost-model indicates that interleaving is not beneficial
+...
+--- !Missed
+Pass:            slp-vectorizer
+Name:            NotPossible
+DebugLoc:        { File: 'test/vectorize/vect_integer_division.c', Line: 1, 
+                   Column: 71 }
+Function:        test
+Args:
+  - String:          'Cannot SLP vectorize list: vectorization was impossible'
+  - String:          ' with available vectorization factors'
+...
+--- !Passed
+Pass:            loop-unroll
+Name:            PartialUnrolled
+DebugLoc:        { File: 'test/vectorize/vect_integer_division.c', Line: 1, 
+                   Column: 36 }
+Function:        test
+Args:
+  - String:          'unrolled loop by a factor of '
+  - UnrollCount:     '2'
+  - String:          ' with run-time trip count'
+...
