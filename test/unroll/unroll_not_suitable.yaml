@@ -1,0 +1,9 @@
+--- !Passed
+Pass:            loop-delete
+Name:            Invariant
+DebugLoc:        { File: 'test/unroll/unroll_not_suitable.c', Line: 1, 
+                   Column: 20 }
+Function:        test
+Args:
+  - String:          Loop deleted because it is invariant
+...

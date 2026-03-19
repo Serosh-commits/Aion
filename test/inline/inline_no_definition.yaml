@@ -1,0 +1,14 @@
+--- !Missed
+Pass:            inline
+Name:            NoDefinition
+DebugLoc:        { File: 'test/inline/inline_no_definition.c', Line: 2, 
+                   Column: 28 }
+Function:        caller
+Args:
+  - Callee:          external_func
+  - String:          ' will not be inlined into '
+  - Caller:          caller
+    DebugLoc:        { File: 'test/inline/inline_no_definition.c', Line: 2, 
+                       Column: 0 }
+  - String:          ' because its definition is unavailable'
+...
