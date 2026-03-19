@@ -132,17 +132,21 @@ llvm::Error PassAnalyzer::runPassPipeline(llvm::Module         &M,
     if (PipelineStr.contains("simplifycfg")) FPM.addPass(llvm::SimplifyCFGPass());
     if (PipelineStr.contains("adce")) FPM.addPass(llvm::ADCEPass());
   } else {
+    // Basic pipeline with availability checks if needed, but for now just add them 
+    // consistently. If they are missing, it should be a link error, not a runtime crash.
     FPM.addPass(llvm::InstCombinePass());
     FPM.addPass(llvm::SimplifyCFGPass());
     FPM.addPass(llvm::ADCEPass());
   }
 
-  // wrap the function pipeline into a module-level manager so it can be executed across the whole ir.
   llvm::ModulePassManager MPM;
   MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
 
-  // kick off the analysis and transformation process.
-  MPM.run(M, MAM);
+  try {
+    MPM.run(M, MAM);
+  } catch (...) {
+    return makeStringError("Exception during pass execution");
+  }
   return llvm::Error::success();
 }
 

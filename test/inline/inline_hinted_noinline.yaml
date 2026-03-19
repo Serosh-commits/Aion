@@ -1,0 +1,20 @@
+--- !Missed
+Pass:            inline
+Name:            NeverInline
+DebugLoc:        { File: 'test/inline/inline_hinted_noinline.c', Line: 2, 
+                   Column: 28 }
+Function:        caller
+Args:
+  - String:          ''''
+  - Callee:          big
+    DebugLoc:        { File: 'test/inline/inline_hinted_noinline.c', Line: 1, 
+                       Column: 0 }
+  - String:          ''' not inlined into '''
+  - Caller:          caller
+    DebugLoc:        { File: 'test/inline/inline_hinted_noinline.c', Line: 2, 
+                       Column: 0 }
+  - String:          ''' because it should never be inlined '
+  - String:          '(cost=never)'
+  - String:          ': '
+  - Reason:          noinline function attribute
+...
