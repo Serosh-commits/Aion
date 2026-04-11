@@ -94,7 +94,7 @@ Remark RemarkCollectorHandler::convertRemark(
   R.Kind = RemarkKind::Analysis;
   R.IsMachine = true;
   R.PassName = "backend";
-  R.RemarkName = DI.getResourceName();
+  R.RemarkName = DI.getResourceName().str();
   R.FunctionName = DI.getFunction().getName().str();
 
   std::string Msg;

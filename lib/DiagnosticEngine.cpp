@@ -42,9 +42,16 @@ void DiagnosticEngine::registerPatterns() {
   registerGenericPatterns();
 }
 
+void DiagnosticEngine::addPattern(OptimizationPattern P) {
+  if (P.PassNameSubstr.empty())
+    GenericPatterns.push_back(std::move(P));
+  else
+    SpecificPatterns[P.PassNameSubstr].push_back(std::move(P));
+}
+
 // populates failure heuristics specifically targeting the call-graph inlining phase
 void DiagnosticEngine::registerInliningPatterns() {
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "too costly",
       "Inlining rejected: callee too large",
       "The inliner evaluated the cost of copying the callee's body into the "
@@ -71,7 +78,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.3
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "recursive",
       "Inlining rejected: recursive function",
       "The inliner never inlines recursive functions because doing so could "
@@ -91,7 +98,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::Medium, 0.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "noinline",
       "Inlining rejected: noinline attribute present",
       "The function has the 'noinline' attribute set, which is an explicit "
@@ -114,7 +121,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.25
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "indirect call",
       "Inlining rejected: indirect call site",
       "The call is made through a function pointer or virtual dispatch, so "
@@ -139,7 +146,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "unavailable definition",
       "Inlining rejected: callee definition not available",
       "The inliner cannot inline a function whose definition is in a "
@@ -165,7 +172,7 @@ void DiagnosticEngine::registerInliningPatterns() {
 
 // populates failure heuristics targeting single-loop autovectorization blocks
 void DiagnosticEngine::registerLoopVectorizationPatterns() {
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "MissedDetails", "loop not vectorized",
       "Loop vectorization failed",
       "The Loop Vectorizer (LV) attempted to transform the scalar loop into "
@@ -195,7 +202,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "cannot identify array bounds",
       "Loop vectorization blocked: unknown array bounds",
       "The vectorizer requires knowledge of the loop trip count at the point "
@@ -219,7 +226,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "unsafe dependent memory operations",
       "Loop vectorization blocked: memory dependency / aliasing",
       "The Loop Access Analysis (LAA) detected or could not disprove a "
@@ -247,7 +254,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Critical, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "value that could not be identified as reduction",
       "Loop vectorization blocked: non-reducible accumulator",
       "The vectorizer recognizes a limited set of reduction patterns: sum, "
@@ -270,7 +277,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Medium, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "call instruction cannot be vectorized",
       "Loop vectorization blocked: non-vectorizable function call",
       "A function call inside the loop body prevents vectorization. To "
@@ -300,7 +307,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
 
 // populates failure heuristics targeting straight-line instruction vectorization
 void DiagnosticEngine::registerSLPVectorizationPatterns() {
-  Patterns.push_back({
+  addPattern({
       "slp-vectorizer", "NotVectorized", "",
       "SLP vectorization failed",
       "The Superword-Level Parallelism (SLP) vectorizer looks for independent "
@@ -330,7 +337,7 @@ void DiagnosticEngine::registerSLPVectorizationPatterns() {
 
 // populates failure heuristics targeting scalar-replacement-of-aggregates optimizations
 void DiagnosticEngine::registerSROAPatterns() {
-  Patterns.push_back({
+  addPattern({
       "sroa", "CannotSROAElement", "",
       "SROA failed: aggregate cannot be decomposed",
       "Scalar Replacement of Aggregates (SROA) decomposes alloca'd struct or "
@@ -358,7 +365,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "", "address taken",
       "SROA failed: address of local variable is taken",
       "When a local variable's address is taken (e.g., '&localVar'), LLVM "
@@ -383,7 +390,7 @@ void DiagnosticEngine::registerSROAPatterns() {
 
 // populates failure heuristics targeting loop unrolling and interleaving passes
 void DiagnosticEngine::registerLoopUnrollPatterns() {
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "FullUnrollAssumed", "unknown trip count",
       "Loop unrolling skipped: trip count not statically known",
       "Full loop unrolling requires the loop to execute a fixed, statically "
@@ -408,7 +415,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
       SeverityLevel::Low, 1.15
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "", "instruction count too high",
       "Loop unrolling rejected: code size would be too large",
       "LLVM's loop unroller uses a cost model to estimate the instruction "
@@ -434,7 +441,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
 
 // populates failure heuristics targeting tail/sibling call eliminations
 void DiagnosticEngine::registerTailCallPatterns() {
-  Patterns.push_back({
+  addPattern({
       "tailcallelim", "UnableToTransform", "",
       "Tail call elimination failed",
       "Tail call elimination (TCE) converts a recursive call in tail position "
@@ -465,7 +472,7 @@ void DiagnosticEngine::registerTailCallPatterns() {
 
 // populates failure heuristics targeting global value numbering redundancy elimination
 void DiagnosticEngine::registerGVNPatterns() {
-  Patterns.push_back({
+  addPattern({
       "gvn", "LoadElim", "",
       "GVN failed to eliminate redundant load",
       "Global Value Numbering (GVN) eliminates redundant loads by proving "
@@ -492,7 +499,7 @@ void DiagnosticEngine::registerGVNPatterns() {
 
 // populates failure heuristics targeting implicit memcpy instantiation passes
 void DiagnosticEngine::registerMemCpyOptPatterns() {
-  Patterns.push_back({
+  addPattern({
       "memcpyopt", "", "",
       "MemCpyOpt failed to optimize memory copy",
       "MemCpyOpt looks for patterns like a series of scalar stores followed "
@@ -518,7 +525,7 @@ void DiagnosticEngine::registerMemCpyOptPatterns() {
 
 // populates failure heuristics targeting complex loop interchange matrix optimizations
 void DiagnosticEngine::registerLoopInterchangePatterns() {
-  Patterns.push_back({
+  addPattern({
       "loop-interchange", "", "",
       "Loop interchange failed",
       "Loop interchange reorders nested loops to improve memory locality "
@@ -546,7 +553,7 @@ void DiagnosticEngine::registerLoopInterchangePatterns() {
 
 // populates generalized failure heuristics that apply across multiple common llvm passes
 void DiagnosticEngine::registerGenericPatterns() {
-  Patterns.push_back({
+  addPattern({
       "", "NeverInline", "",
       "Optimization blocked by attribute",
       "An explicit attribute on the function or call site is preventing "
@@ -563,7 +570,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::High, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "", "", "optnone",
       "Optimization skipped: optnone function",
       "The function was compiled with -O0 or has the __attribute__((optnone)) "
@@ -582,7 +589,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::Critical, 2.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "gvn", "LoadClobbered", "",
       "Global Value Numbering failed: load clobbered by store",
       "The optimizer found a load that could potentially be replaced by a "
@@ -600,7 +607,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::Medium, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "Cannot vectorize potentially faulting early exit loop",
       "Loop Vectorization failed: Non-canonical early exit",
       "The loop contains a conditional 'break', 'return', or 'goto' that "
@@ -622,7 +629,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::High, 3.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NoDefinition", "",
       "Inlining failed: No function definition available",
       "The inliner cannot inline a function if its body is not available in "
@@ -646,30 +653,50 @@ DiagnosticEngine::findMatchingPattern(const Remark &R) const {
   const OptimizationPattern *Best = nullptr;
   int BestScore = -1;
 
-  for (const OptimizationPattern &P : Patterns) {
-    int Score = 0;
+  auto searchIn = [&](const std::vector<OptimizationPattern> &Vec) {
+    for (const auto &P : Vec) {
+      int Score = 0;
 
-    if (!P.PassNameSubstr.empty()) {
-      if (!matchesPattern(R.PassName, P.PassNameSubstr))
-        continue;
-      Score += 2;
+      if (!P.PassNameSubstr.empty()) {
+        if (!matchesPattern(R.PassName, P.PassNameSubstr))
+          continue;
+        Score += 2;
+      }
+
+      if (!P.RemarkNameSubstr.empty()) {
+        if (!matchesPattern(R.RemarkName, P.RemarkNameSubstr))
+          continue;
+        Score += 3;
+      }
+
+      if (!P.MessageSubstr.empty()) {
+        if (!matchesPattern(R.Message, P.MessageSubstr))
+          continue;
+        Score += 4;
+      }
+
+      if (Score > BestScore) {
+        BestScore = Score;
+        Best = &P;
+      }
     }
+  };
 
-    if (!P.RemarkNameSubstr.empty()) {
-      if (!matchesPattern(R.RemarkName, P.RemarkNameSubstr))
-        continue;
-      Score += 3;
-    }
+  // 1. search generic patterns that apply to all passes
+  searchIn(GenericPatterns);
 
-    if (!P.MessageSubstr.empty()) {
-      if (!matchesPattern(R.Message, P.MessageSubstr))
-        continue;
-      Score += 4;
-    }
-
-    if (Score > BestScore) {
-      BestScore = Score;
-      Best = &P;
+  // 2. search pass-specific patterns. 
+  // we optimize by only looking at patterns registered for this specific pass name.
+  auto It = SpecificPatterns.find(R.PassName);
+  if (It != SpecificPatterns.end()) {
+    searchIn(It->second);
+  } else {
+    // 3. fallback: check if any SpecificPatterns key is a substring of the remark pass name
+    // this handles cases where the pattern key is e.g. "inline" but the remark pass is "always-inline"
+    for (const auto &Entry : SpecificPatterns) {
+      if (matchesPattern(R.PassName, Entry.first())) {
+        searchIn(Entry.second);
+      }
     }
   }
 
@@ -761,7 +788,7 @@ DiagnosticEngine::analyze(const std::vector<Remark> &Remarks,
   std::vector<DiagnosticResult> Results;
   Results.reserve(Remarks.size());
 
-  for (const Remark &R : Remarks) {
+  for (const auto &R : Remarks) {
     if (R.Kind == RemarkKind::Applied)
       continue;
     
