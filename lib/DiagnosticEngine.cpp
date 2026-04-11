@@ -3,7 +3,6 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <algorithm>
-#include <cmath>
 #include <regex>
 #include <sstream>
 
@@ -40,47 +39,19 @@ void DiagnosticEngine::registerPatterns() {
   registerGVNPatterns();
   registerMemCpyOptPatterns();
   registerLoopInterchangePatterns();
-  registerMachinePatterns();
-  registerPGOPatterns();
   registerGenericPatterns();
+}
+
+void DiagnosticEngine::addPattern(OptimizationPattern P) {
+  if (P.PassNameSubstr.empty())
+    GenericPatterns.push_back(std::move(P));
+  else
+    SpecificPatterns[P.PassNameSubstr].push_back(std::move(P));
 }
 
 // populates failure heuristics specifically targeting the call-graph inlining phase
 void DiagnosticEngine::registerInliningPatterns() {
-
-  Patterns.push_back({
-      "inline", "NotInlined", "hinted to never inline",
-      "Inlining rejected: hinted to never inline",
-      "The call site was explicitly annotated with [[clang::noinline]] or "
-      "__attribute__((noinline)), preventing the optimizer from considering it.",
-      "Explicit 'noinline' attribute at call site.",
-      "The optimizer might have inlined this call without the hint.",
-      { makeFix("Remove the noinline attribute from the call site if inlining is desired") },
-      SeverityLevel::High, 1.0
-  });
-
-  Patterns.push_back({
-      "inline", "NotInlined", "no profile data",
-      "Inlining rejected: missing profile data",
-      "The inliner heuristics request profile data to determine if this call site "
-      "is hot enough to justify the cost, but PGO data is not available.",
-      "PGO data is missing, making the optimizer conservative.",
-      "Use branch probabilities to confidently inline hot paths.",
-      { makeFix("Enable PGO (-fprofile-generate / -fprofile-use) to provide runtime insights") },
-      SeverityLevel::Medium, 1.2
-  });
-
-  Patterns.push_back({
-      "inline", "NotInlined", "cold callee",
-      "Inlining rejected: cold callee",
-      "Profile Guided Optimization (PGO) indicates that this function is rarely called, "
-      "so expanding its size via inlining is not beneficial and bloats the hot instruction cache.",
-      "The callee is executed infrequently according to the provided profile data.",
-      "Save instruction cache space by NOT inlining this rarely executed code.",
-      { makeFix("Wait, this is usually correct behavior; if incorrect, check if your PGO workload is representative") },
-      SeverityLevel::Low, 0.0
-  });
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "too costly",
       "Inlining rejected: callee too large",
       "The inliner evaluated the cost of copying the callee's body into the "
@@ -107,7 +78,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.3
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "recursive",
       "Inlining rejected: recursive function",
       "The inliner never inlines recursive functions because doing so could "
@@ -127,7 +98,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::Medium, 0.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "noinline",
       "Inlining rejected: noinline attribute present",
       "The function has the 'noinline' attribute set, which is an explicit "
@@ -150,7 +121,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.25
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "indirect call",
       "Inlining rejected: indirect call site",
       "The call is made through a function pointer or virtual dispatch, so "
@@ -175,7 +146,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "unavailable definition",
       "Inlining rejected: callee definition not available",
       "The inliner cannot inline a function whose definition is in a "
@@ -201,109 +172,7 @@ void DiagnosticEngine::registerInliningPatterns() {
 
 // populates failure heuristics targeting single-loop autovectorization blocks
 void DiagnosticEngine::registerLoopVectorizationPatterns() {
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "loop contains a divergent operation",
-      "Loop vectorization blocked: divergent control flow",
-      "The loop body contains control flow (such as conditionals) that cannot be "
-      "efficiently executed across all SIMD lanes without complex masking.",
-      "Divergent operations or unsupported control flow intra-loop.",
-      "Execute the loop simultaneously across multiple lanes.",
-      { makeFix("Simplify loop body to rely on straight-line code and min/max intrinsics") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "integer division is not vectorizable",
-      "Loop vectorization blocked: integer division",
-      "The loop body contains an integer division operation, which is highly "
-      "complex to compute in SIMD processing units.",
-      "Integer division is generally not natively supported in vector units.",
-      "Perform fast vector arithmetic.",
-      { makeFix("Replace division by a constant with multiplication by its reciprocal or shifting if the divisor is a power of 2") },
-      SeverityLevel::High, 2.8
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "loop control flow is not understood by vectorizer",
-      "Loop vectorization blocked: complex control flow",
-      "The Loop Vectorizer cannot understand the control flow graph of the loop. "
-      "This happens if the loop lacks a clear single entry, single back-edge, "
-      "or has irreducible control flow.",
-      "Irreducible or unsupported control flow structure in the loop nest.",
-      "Map loop iterations directly to vector elements.",
-      { makeFix("Refactor code into conventional 'for' loops without unstructured jumps/gotos") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "loop with mixed types",
-      "Loop vectorization blocked: mixed types",
-      "Vectorizing a loop involves operating on a homogeneous set of types. "
-      "When the loop mixes sizes (e.g. i8 arrays and i64 additions), it forces "
-      "the vectorizer to introduce expensive lane extensions/truncations which "
-      "violates cost thresholds or breaks generic legality checks.",
-      "Varied bit-widths or types creating vectorization overhead.",
-      "Vectorize elements cleanly via a consistent register width.",
-      { makeFix("Use consistent variable types throughout the hot loop computation (e.g. all 32-bit floats or all 64-bit ints)") },
-      SeverityLevel::Medium, 2.5
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "loop with uncountable exit",
-      "Loop vectorization blocked: uncountable exit",
-      "The loop is structured such that its exact trip count or iteration limit "
-      "cannot be determined at compile time or cleanly monitored at runtime.",
-      "Uncountable exit condition.",
-      "Determine trip count dynamically or statically to partition vector work.",
-      { makeFix("Rewrite loop bounds to depend on explicit array sizes rather than complex sentinel variables") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "cannot vectorize: loop over a pointer IV",
-      "Loop vectorization blocked: pointer induction variable",
-      "The loop iterates using a pointer as an induction variable instead of "
-      "an integer. LLVM LV typically requires a canonical integer induction variable.",
-      "Pointer manipulation used for core loop counting.",
-      "Create a canonical canonical vector loop controlled by an integer IV.",
-      { makeFix("Refactor the loop to iterate by an integer index 'i' (e.g., A[i]) and derive pointers if necessary inside") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "store that is conditionally executed",
-      "Loop vectorization blocked: conditional store",
-      "The loop body contains a conditional store which the target architecture's "
-      "SIMD capabilities cannot safely handle (e.g. lack of masked store support).",
-      "Conditional store requires masking which is unsupported or unfavorable.",
-      "Vectorize execution of writes.",
-      { makeFix("Avoid conditional memory modification in loops") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "NotVectorized", "cannot vectorize: optimization disabled",
-      "Loop vectorization blocked: optimization disabled",
-      "Vectorization was explicitly disabled on this loop (e.g. via #pragma).",
-      "Pragma blocked vectorizer.",
-      "Vectorize loop.",
-      { makeFix("Remove #pragma clang loop vectorize(disable)") },
-      SeverityLevel::Medium, 1.0
-  });
-
-  Patterns.push_back({
-      "loop-vectorize", "VectorizationNotBeneficial", "not beneficial",
-      "Loop vectorization skipped: not beneficial",
-      "The vectorizer succeeded in proving legality, but the cost model evaluated "
-      "that the vector version would actually be slower (due to gather/scatter, "
-      "type promotions, or heavy scalar setup) relative to the estimated loop trip count.",
-      "Estimated runtime overhead of vectorization exceeds the speedup benefits.",
-      "Utilize SIMD registers efficiently.",
-      { makeFix("Simplify loop arithmetic or use #pragma clang loop vectorize(enable) to override cost model") },
-      SeverityLevel::Low, 1.0
-  });
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "MissedDetails", "loop not vectorized",
       "Loop vectorization failed",
       "The Loop Vectorizer (LV) attempted to transform the scalar loop into "
@@ -333,7 +202,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "cannot identify array bounds",
       "Loop vectorization blocked: unknown array bounds",
       "The vectorizer requires knowledge of the loop trip count at the point "
@@ -357,7 +226,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "unsafe dependent memory operations",
       "Loop vectorization blocked: memory dependency / aliasing",
       "The Loop Access Analysis (LAA) detected or could not disprove a "
@@ -385,7 +254,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Critical, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "value that could not be identified as reduction",
       "Loop vectorization blocked: non-reducible accumulator",
       "The vectorizer recognizes a limited set of reduction patterns: sum, "
@@ -408,7 +277,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Medium, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "call instruction cannot be vectorized",
       "Loop vectorization blocked: non-vectorizable function call",
       "A function call inside the loop body prevents vectorization. To "
@@ -438,39 +307,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
 
 // populates failure heuristics targeting straight-line instruction vectorization
 void DiagnosticEngine::registerSLPVectorizationPatterns() {
-
-  Patterns.push_back({
-      "slp-vectorizer", "NotVectorized", "cannot vectorize scalar instructions",
-      "SLP vectorization blocked: non-vectorizable operations",
-      "The target operations cannot be mapped to the target's SIMD instructions.",
-      "Instructions unsupported by hardware SIMD.",
-      "Bundle independent scalars.",
-      { makeFix("Refactor to use basic arithmetic that is explicitly supported on the target ISA") },
-      SeverityLevel::Low, 1.0
-  });
-
-  Patterns.push_back({
-      "slp-vectorizer", "NotVectorized", "not enough uses to vectorize",
-      "SLP vectorization skipped: not enough uses",
-      "The operations were deemed vectorizable, but bundling them isn't mathematically "
-      "or structurally beneficial due to limited occurrences in the straight-line code.",
-      "Too few independent/identical operations.",
-      "Batch sequence of scalars into parallel SIMD registers.",
-      { makeFix("Unroll the loop slightly or manually bundle arithmetic expressions conceptually") },
-      SeverityLevel::Low, 1.0
-  });
-
-  Patterns.push_back({
-      "slp-vectorizer", "NotVectorized", "different types of instructions in the tree",
-      "SLP vectorization blocked: mixed instruction types",
-      "The SLP vectorizer looks for homogeneous pairs or chains of matching instructions. "
-      "Mixed types in the expression forest prohibit parallel uniform extraction.",
-      "Computation graph nodes are heterogeneous.",
-      "Form uniform groups of operations for SIMD lanes.",
-      { makeFix("Organize your algorithm to run similar operations adjacently (e.g., group Adds then group Muls)") },
-      SeverityLevel::Medium, 1.5
-  });
-  Patterns.push_back({
+  addPattern({
       "slp-vectorizer", "NotVectorized", "",
       "SLP vectorization failed",
       "The Superword-Level Parallelism (SLP) vectorizer looks for independent "
@@ -500,50 +337,7 @@ void DiagnosticEngine::registerSLPVectorizationPatterns() {
 
 // populates failure heuristics targeting scalar-replacement-of-aggregates optimizations
 void DiagnosticEngine::registerSROAPatterns() {
-
-  Patterns.push_back({
-      "sroa", "NotPossible", "alloca is escaped",
-      "SROA blocked: alloca is escaped",
-      "The local variable is explicitly passed by reference or its pointer is returned. "
-      "SROA cannot convert this to scalars and it must remain allocated on the stack.",
-      "Pointer to local structure/variable escapes the current functional scope.",
-      "Promote the aggregate to SSA values in registers.",
-      { makeFix("Return by value or pass small structs by value / small array arguments recursively") },
-      SeverityLevel::High, 1.5
-  });
-
-  Patterns.push_back({
-      "sroa", "NotPossible", "alloca is used with volatile",
-      "SROA blocked: volatile accessor",
-      "Volatile memory accesses force the compiler to preserve the stack memory "
-      "state, preventing any scalarization or register promotion.",
-      "Use of volatile keyword overriding optimizer capabilities.",
-      "Replace memory stack loads/stores with pure register operations.",
-      { makeFix("Remove volatile keyword unless this memory maps to hardware/threading control") },
-      SeverityLevel::High, 1.2
-  });
-
-  Patterns.push_back({
-      "sroa", "NotPossible", "alloca is too large",
-      "SROA blocked: alloca is too large",
-      "The aggregate structure exceeds SROA's internal cost threshold for scalar expansion.",
-      "Size of struct/array violates SROA boundaries.",
-      "Partition stack allocations into SSA registers.",
-      { makeFix("Use heap allocation (std::vector) for massive arrays, or re-structure the program") },
-      SeverityLevel::Low, 0.5
-  });
-
-  Patterns.push_back({
-      "sroa", "NotPossible", "alloca is used with a select and cannot be promoted",
-      "SROA blocked: conditional pointer selection (select inst)",
-      "The program conditionally selects pointers to different allocations. "
-      "This dynamic pointer alias ambiguity forces SROA to abandon promotion.",
-      "Ternary or branching selection of pointers.",
-      "Resolve static pointers to concrete variables.",
-      { makeFix("Rewrite conditionals to select the loaded scalar values rather than selecting the pointers themselves") },
-      SeverityLevel::Medium, 1.0
-  });
-  Patterns.push_back({
+  addPattern({
       "sroa", "CannotSROAElement", "",
       "SROA failed: aggregate cannot be decomposed",
       "Scalar Replacement of Aggregates (SROA) decomposes alloca'd struct or "
@@ -571,7 +365,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "", "address taken",
       "SROA failed: address of local variable is taken",
       "When a local variable's address is taken (e.g., '&localVar'), LLVM "
@@ -596,41 +390,7 @@ void DiagnosticEngine::registerSROAPatterns() {
 
 // populates failure heuristics targeting loop unrolling and interleaving passes
 void DiagnosticEngine::registerLoopUnrollPatterns() {
-
-  Patterns.push_back({
-      "loop-unroll", "NotUnrolled", "loop not suitable for unrolling",
-      "Loop unroll skipped: not suitable",
-      "The loop lacks the necessary canonical structure (induction variables, clear exits) "
-      "needed for the unrolling algorithm.",
-      "Non-canonical loop shape.",
-      "Clone the loop body sequentially.",
-      { makeFix("Refactor into a standard counting 'for' loop") },
-      SeverityLevel::Medium, 1.0
-  });
-
-  Patterns.push_back({
-      "loop-unroll", "NotUnrolled", "could not determine number of loop iterations",
-      "Loop unroll skipped: indeterminate iterations",
-      "The compiler couldn't statically prove the number of times the loop iterates, "
-      "or it couldn't inject a runtime check safely.",
-      "Unpredictable trip count analysis.",
-      "Identify the exact bounds to unroll effectively.",
-      { makeFix("Provide static bounds or use PGO to indicate the loop is uniformly small") },
-      SeverityLevel::Medium, 1.0
-  });
-
-  Patterns.push_back({
-      "loop-unroll", "PartialUnrolled", "",
-      "Loop unroll: Partially Unrolled",
-      "The loop was partially unrolled by a fixed factor, but not completely eliminated. "
-      "This is a successful optimization, but full unrolling might have been desirable "
-      "if bounds were fully proven.",
-      "Trip count not perfectly divisible by full unroll limit, or full unroll exceeds size threshold.",
-      "Completely flat loop execution.",
-      { makeFix("If full unrolling is strictly necessary, supply #pragma clang loop unroll(full)") },
-      SeverityLevel::Low, 0.5
-  });
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "FullUnrollAssumed", "unknown trip count",
       "Loop unrolling skipped: trip count not statically known",
       "Full loop unrolling requires the loop to execute a fixed, statically "
@@ -655,7 +415,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
       SeverityLevel::Low, 1.15
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "", "instruction count too high",
       "Loop unrolling rejected: code size would be too large",
       "LLVM's loop unroller uses a cost model to estimate the instruction "
@@ -681,7 +441,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
 
 // populates failure heuristics targeting tail/sibling call eliminations
 void DiagnosticEngine::registerTailCallPatterns() {
-  Patterns.push_back({
+  addPattern({
       "tailcallelim", "UnableToTransform", "",
       "Tail call elimination failed",
       "Tail call elimination (TCE) converts a recursive call in tail position "
@@ -712,7 +472,7 @@ void DiagnosticEngine::registerTailCallPatterns() {
 
 // populates failure heuristics targeting global value numbering redundancy elimination
 void DiagnosticEngine::registerGVNPatterns() {
-  Patterns.push_back({
+  addPattern({
       "gvn", "LoadElim", "",
       "GVN failed to eliminate redundant load",
       "Global Value Numbering (GVN) eliminates redundant loads by proving "
@@ -739,7 +499,7 @@ void DiagnosticEngine::registerGVNPatterns() {
 
 // populates failure heuristics targeting implicit memcpy instantiation passes
 void DiagnosticEngine::registerMemCpyOptPatterns() {
-  Patterns.push_back({
+  addPattern({
       "memcpyopt", "", "",
       "MemCpyOpt failed to optimize memory copy",
       "MemCpyOpt looks for patterns like a series of scalar stores followed "
@@ -765,41 +525,7 @@ void DiagnosticEngine::registerMemCpyOptPatterns() {
 
 // populates failure heuristics targeting complex loop interchange matrix optimizations
 void DiagnosticEngine::registerLoopInterchangePatterns() {
-
-  Patterns.push_back({
-      "loop-interchange", "NotInterchanged", "not profitable",
-      "Loop interchange skipped: not profitable",
-      "Data dependence analysis verified the interchange is safe, but the cost model "
-      "projected that the transposed loop order would exhibit worse cache locality "
-      "or arithmetic behavior.",
-      "Cost model rejected the optimization.",
-      "Improve matrix traversal memory strides.",
-      { makeFix("You don't need to fix this—LLVM successfully predicted interchanging would be bad") },
-      SeverityLevel::Low, 0.0
-  });
-
-  Patterns.push_back({
-      "loop-interchange", "NotInterchanged", "outer loop has dependences",
-      "Loop interchange blocked: outer loop dependence",
-      "A dependence distance restricts the outer and inner dimensions from being legally "
-      "swapped without altering mathematical correctness.",
-      "Memory dependence vector violation.",
-      "Transpose the loops.",
-      { makeFix("Rewrite algorithms to isolate loop dependence dimensions") },
-      SeverityLevel::Medium, 2.0
-  });
-
-  Patterns.push_back({
-      "loop-interchange", "NotInterchanged", "not tightly nested",
-      "Loop interchange blocked: not tightly nested",
-      "Loop interchange strictly requires a perfect nest (no auxiliary statements "
-      "between the inner and outer loop statements).",
-      "Imperfect loop nesting structure exists.",
-      "Swap inner and outer loop structure.",
-      { makeFix("Refactor any auxiliary assignments out of the inter-loop boundary scope") },
-      SeverityLevel::Medium, 1.5
-  });
-  Patterns.push_back({
+  addPattern({
       "loop-interchange", "", "",
       "Loop interchange failed",
       "Loop interchange reorders nested loops to improve memory locality "
@@ -827,7 +553,7 @@ void DiagnosticEngine::registerLoopInterchangePatterns() {
 
 // populates generalized failure heuristics that apply across multiple common llvm passes
 void DiagnosticEngine::registerGenericPatterns() {
-  Patterns.push_back({
+  addPattern({
       "", "NeverInline", "",
       "Optimization blocked by attribute",
       "An explicit attribute on the function or call site is preventing "
@@ -844,7 +570,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::High, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "", "", "optnone",
       "Optimization skipped: optnone function",
       "The function was compiled with -O0 or has the __attribute__((optnone)) "
@@ -863,7 +589,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::Critical, 2.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "gvn", "LoadClobbered", "",
       "Global Value Numbering failed: load clobbered by store",
       "The optimizer found a load that could potentially be replaced by a "
@@ -881,7 +607,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::Medium, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "Cannot vectorize potentially faulting early exit loop",
       "Loop Vectorization failed: Non-canonical early exit",
       "The loop contains a conditional 'break', 'return', or 'goto' that "
@@ -903,7 +629,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::High, 3.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NoDefinition", "",
       "Inlining failed: No function definition available",
       "The inliner cannot inline a function if its body is not available in "
@@ -921,246 +647,56 @@ void DiagnosticEngine::registerGenericPatterns() {
   });
 }
 
-void DiagnosticEngine::registerMachinePatterns() {
-  Patterns.push_back({
-      "regalloc", "Spill", "",
-      "High Register Pressure: Multiple spills detected",
-      "The register allocator could not find enough physical registers to hold "
-      "all live values simultaneously. This forced the compiler to 'spill' "
-      "values to the stack, inserting extra memory load/store instructions in "
-      "the function body. Spills are significantly slower than register access "
-      "and can bottleneck hot loops.",
-      "The function contains more live variables than available registers on "
-      "the target architecture.",
-      "The backend wanted to keep all values in registers for maximum speed, "
-      "but was forced to use the stack for overflow storage.",
-      {
-        makeFix("Reduce the scope of local variables to shorten their live ranges"),
-        makeFix("Hoisted invariant expressions out of loops to reduce register pressure inside the loop body"),
-        makeFix("Consider splitting the function into smaller components if it has extremely high complexity"),
-      },
-      SeverityLevel::High, 0.8
-  });
-
-  Patterns.push_back({
-      "prologepilog", "StackSize", "",
-      "Excessive Stack Frame Size recorded",
-      "The function requires a large stack frame, which can impact cache locality "
-      "and result in stack overflow in multi-threaded environments. This often "
-      "happens when large arrays or structures are allocated on the stack "
-      "instead of the heap.",
-      "Large local buffers or recursive calls are consuming stack space.",
-      "The backend needs to allocate a significant memory block for the function "
-      "prologue/epilogue sequence.",
-      {
-        makeFix("Move large local arrays to the heap or use a static buffer if thread-safety is not a concern"),
-        makeFix("Verify if deep recursion is necessary and consider converting to an iterative loop"),
-      },
-      SeverityLevel::Medium, 0.1
-  });
-}
-
-void DiagnosticEngine::registerPGOPatterns() {
-
-  Patterns.push_back({
-      "pgo-instrumentation", "MissingProf", "",
-      "PGO Instrumentation: Missing Profile",
-      "A profile file is loaded and in use, but the runtime samples did not include "
-      "data for this highly structured function.",
-      "Instrumented runtime execution did not trigger this function sequence.",
-      "Analyze function's frequency properly through empirical workload tracking.",
-      { makeFix("Verify that the profile run executed appropriate code coverage paths") },
-      SeverityLevel::Medium, 1.5
-  });
-
-  Patterns.push_back({
-      "pgo-instrumentation", "InsufficientSamples", "",
-      "PGO Instrumentation: Insufficient Samples",
-      "Profile Guided Optimization lacks adequate data points to make mathematically "
-      "confident optimization changes. The data collected was too thin.",
-      "Stochastic execution data provides poor resolution.",
-      "Identify high-priority branch paths.",
-      { makeFix("Run the profile-instrumented program longer or using larger, sustained input workloads") },
-      SeverityLevel::Medium, 1.0
-  });
-  Patterns.push_back({
-      "pgo-icall-prom", "NotInlined", "",
-      "PGO-driven devirtualization target found",
-      "This indirect call site is identified as 'hot' by PGO data, but it "
-      "has not been fully promoted to a direct call or inlined. Devirtualizing "
-      "this call could yield significant performance gains by eliminating the "
-      "indirect branch overhead and enabling subsequent inlining. "
-      "The actual hotness recorded for this call is {Hotness}.",
-      "A hot indirect call site was detected via profiling, but it was not "
-      "automatically devirtualized by the optimizer.",
-      "The optimizer wanted to speculatively promote this indirect call to "
-      "a direct call to the most frequent callee, then inline that callee.",
-      {
-        makeFix("If this is a virtual method, consider using final / override "
-                "to encourage devirtualization"),
-        makeFix("Explicitly use a switch/case on the most frequent callee types "
-                "to manually 'inline' the dispatch"),
-        makeFix("Identify why IndirectCallPromotion failed: check if the "
-                "callee is visible or if the threshold is too low"),
-      },
-      SeverityLevel::Critical, 2.5
-  });
-
-  Patterns.push_back({
-      "pgo-instr-use", "Mismatch", "",
-      "PGO Metadata Mismatch: Local profile data stale",
-      "The compiler found a discrepancy between the provided profile data and "
-      "the current control-flow graph (CFG). This usually happens when the "
-      "source code has changed significantly since the profile was collected. "
-      "LLVM may ignore profile data for functions with serious mismatches, "
-      "reverting to less accurate static heuristics.",
-      "The CFG of the function has changed, making the recorded profile "
-      "unreliable or unusable.",
-      "The optimizer wanted to use the profile data for branch weighting and "
-      "basic-block placement for maximum throughput.",
-      {
-        makeFix("Gather new profile data: re-run the training workload and "
-                "re-export the .profdata file"),
-        makeFix("Ensure you are using the exact same commit for training and "
-                "deployment builds"),
-      },
-      SeverityLevel::High, 0.2
-  });
-}
-
 // executes an o(n) heuristic search against the registered pattern database to classify a raw remark
-
-void DiagnosticEngine::registerLoopAccessPatterns() {
-  Patterns.push_back({
-      "loop-accesses", "UnsafeMemDep", "unsafe dependent memory operations",
-      "Memory Dependency Analysis: Unsafe dependent memory Operations",
-      "Loop Access Analysis could not securely confirm that memory loads and stores "
-      "inside the loop do not overlap across different iterations. This blocks downstream "
-      "optimizers like the Loop Vectorizer.",
-      "Pointer aliasing or true dependence overlap was detected.",
-      "Prove loop memory addresses are completely separated across iterations.",
-      { makeFix("Provide 'restrict' annotations to array pointers to guarantee non-aliasing") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-accesses", "Dependence", "",
-      "Memory Dependency Analysis: Dependence found",
-      "A specific Read-After-Write (RAW), Write-After-Read (WAR), or Write-After-Write (WAW) "
-      "hazard prevents vectorizing this access sequence.",
-      "Memory hazard detected.",
-      "Process instructions out-of-order safely.",
-      { makeFix("Eliminate cyclic data dependencies spanning across loop body boundaries") },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "loop-accesses", "SymbolicStride", "non-constant stride",
-      "Memory Dependency Analysis: Non-constant symbolic stride",
-      "The array or pointer is traversed using an offset that the compiler cannot trace "
-      "to a constant integer. The unpredictable step prevents reasoning about element overlap.",
-      "Dynamic or runtime-defined array stride distance.",
-      "Determine explicit gap between accessed indices.",
-      { makeFix("Ensure step values are known constants or loop-invariant induction integers") },
-      SeverityLevel::Medium, 2.0
-  });
-}
-
-void DiagnosticEngine::registerDevirtPatterns() {
-  Patterns.push_back({
-      "wholeprogramdevirt", "UnableToDevirt", "",
-      "WholeProgramDevirt blocked: Unable to Devirtualize",
-      "The optimizer could not statically resolve all potential virtual overrides "
-      "for the class hierarchy. Link-Time Optimization (LTO) needs full visibility "
-      "to devirtualize successfully.",
-      "Class hierarchy visibility is limited or dynamically unpredictable.",
-      "Resolve V-Table indirect call directly to static procedure call.",
-      {
-        makeFix("Ensure LTO is fully enabled across all compilation units"),
-        makeFix("Mark class inheritance chains as final or use [[clang::lto_visibility_public]]")
-      },
-      SeverityLevel::High, 3.0
-  });
-
-  Patterns.push_back({
-      "wholeprogramdevirt", "NotDevirt", "",
-      "WholeProgramDevirt blocked: No single target",
-      "Virtual call resolves to more than one possible implementation target. "
-      "The devirtualizer cannot pick a concrete static function to promote.",
-      "Polymorphic ambiguity limits targeted devirtualization.",
-      "Reduce the virtual call graph options to a singular leaf node.",
-      { makeFix("Evaluate utilizing PGO so speculative partial devirtualization might succeed instead") },
-      SeverityLevel::Medium, 2.0
-  });
-}
-
-void DiagnosticEngine::registerArgPromotionPatterns() {
-  Patterns.push_back({
-      "argpromotion", "NotPromoted", "argument cannot be promoted to register",
-      "Argument Promotion skipped: Non-promotable",
-      "The function parameter relies on memory semantics that are ineligible to "
-      "be cleanly passed entirely as SSA registers.",
-      "Pointer size/type makes register extraction complex.",
-      "Extract underlying values into CPU registers, bypassing stack memory.",
-      { makeFix("Pass structures by value directly rather than using large references/pointers") },
-      SeverityLevel::Medium, 1.0
-  });
-
-  Patterns.push_back({
-      "argpromotion", "NotPromoted", "aliasing prevents promotion",
-      "Argument Promotion blocked: Aliasing detected",
-      "The optimizer suspects that the pointer argument might alias with "
-      "other state variables, meaning promoting it into a CPU register "
-      "would dangerously unsync it from memory writes elsewhere.",
-      "Pointer tracking could not prove variable isolation.",
-      "Isolate exact variable values safely into registers.",
-      { makeFix("Mark pure function pointers with 'restrict' if strictly appropriate") },
-      SeverityLevel::High, 1.5
-  });
-}
-
-void DiagnosticEngine::registerJumpThreadingPatterns() {
-  Patterns.push_back({
-      "jump-threading", "NotJumpThreaded", "",
-      "Jump Threading blocked",
-      "Jump threading relies on tracing variable states out of previous blocks "
-      "to prove the outcome of future branches. The optimizer could not determine "
-      "the branch condition statically across these blocks.",
-      "Control flow paths contain variables with unpredictable runtime values.",
-      "Bypass the conditional jump securely.",
-      { makeFix("Simplify the condition pipeline or inline the branch resolution calculation earlier") },
-      SeverityLevel::Low, 1.0
-  });
-}
 const OptimizationPattern *
 DiagnosticEngine::findMatchingPattern(const Remark &R) const {
   const OptimizationPattern *Best = nullptr;
   int BestScore = -1;
 
-  for (const OptimizationPattern &P : Patterns) {
-    int Score = 0;
+  auto searchIn = [&](const std::vector<OptimizationPattern> &Vec) {
+    for (const auto &P : Vec) {
+      int Score = 0;
 
-    if (!P.PassNameSubstr.empty()) {
-      if (!matchesPattern(R.PassName, P.PassNameSubstr))
-        continue;
-      Score += 2;
+      if (!P.PassNameSubstr.empty()) {
+        if (!matchesPattern(R.PassName, P.PassNameSubstr))
+          continue;
+        Score += 2;
+      }
+
+      if (!P.RemarkNameSubstr.empty()) {
+        if (!matchesPattern(R.RemarkName, P.RemarkNameSubstr))
+          continue;
+        Score += 3;
+      }
+
+      if (!P.MessageSubstr.empty()) {
+        if (!matchesPattern(R.Message, P.MessageSubstr))
+          continue;
+        Score += 4;
+      }
+
+      if (Score > BestScore) {
+        BestScore = Score;
+        Best = &P;
+      }
     }
+  };
 
-    if (!P.RemarkNameSubstr.empty()) {
-      if (!matchesPattern(R.RemarkName, P.RemarkNameSubstr))
-        continue;
-      Score += 3;
-    }
+  // 1. search generic patterns that apply to all passes
+  searchIn(GenericPatterns);
 
-    if (!P.MessageSubstr.empty()) {
-      if (!matchesPattern(R.Message, P.MessageSubstr))
-        continue;
-      Score += 4;
-    }
-
-    if (Score > BestScore) {
-      BestScore = Score;
-      Best = &P;
+  // 2. search pass-specific patterns. 
+  // we optimize by only looking at patterns registered for this specific pass name.
+  auto It = SpecificPatterns.find(R.PassName);
+  if (It != SpecificPatterns.end()) {
+    searchIn(It->second);
+  } else {
+    // 3. fallback: check if any SpecificPatterns key is a substring of the remark pass name
+    // this handles cases where the pattern key is e.g. "inline" but the remark pass is "always-inline"
+    for (const auto &Entry : SpecificPatterns) {
+      if (matchesPattern(R.PassName, Entry.first())) {
+        searchIn(Entry.second);
+      }
     }
   }
 
@@ -1177,8 +713,6 @@ std::string DiagnosticEngine::interpolateArgs(const std::string &Template,
     size_t Pos = Result.find(Placeholder);
     while (Pos != std::string::npos) {
       Result.replace(Pos, Placeholder.size(), Arg.Value);
-      // skip ahead by the size of the replacement to prevent infinite
-      // recursion if Arg.Value contains the Placeholder string
       Pos = Result.find(Placeholder, Pos + Arg.Value.size());
     }
   }
@@ -1187,17 +721,6 @@ std::string DiagnosticEngine::interpolateArgs(const std::string &Template,
   while (FnPos != std::string::npos) {
     Result.replace(FnPos, 14, R.FunctionName);
     FnPos = Result.find("{FunctionName}", FnPos + R.FunctionName.size());
-  }
-
-  if (R.Hotness) {
-    char HotnessBuf[32];
-    std::snprintf(HotnessBuf, sizeof(HotnessBuf), "%.1f", *R.Hotness);
-    std::string HotnessStr = HotnessBuf;
-    size_t HotPos = Result.find("{Hotness}");
-    while (HotPos != std::string::npos) {
-      Result.replace(HotPos, 9, HotnessStr);
-      HotPos = Result.find("{Hotness}", HotPos + HotnessStr.size());
-    }
   }
 
   return Result;
@@ -1218,15 +741,7 @@ DiagnosticEngine::buildFromPattern(const Remark              &R,
   DR.Suggestions       = P.Suggestions;
   DR.Severity          = P.Severity;
   DR.EstimatedSpeedup  = P.EstimatedSpeedup;
-  DR.Hotness           = R.Hotness;
   DR.IsMachine         = R.IsMachine;
-
-  // Weighted Impact Score: Scale static speedup by PGO hotness if available.
-  // This helps prioritize optimizations in the most critical code paths.
-  if (R.Hotness && std::isfinite(*R.Hotness)) {
-    DR.EstimatedSpeedup *= (*R.Hotness);
-  }
-
   return DR;
 }
 
@@ -1249,24 +764,7 @@ DiagnosticEngine::buildFallback(const Remark &R) const {
                            "transformation that was blocked by a precondition.";
   DR.Severity            = SeverityLevel::Medium;
   DR.EstimatedSpeedup    = 0.0;
-  DR.Hotness             = R.Hotness;
   DR.IsMachine           = R.IsMachine;
-  return DR;
-}
-
-// implementation of public single-remark analysis api with ir context
-DiagnosticResult
-DiagnosticEngine::analyzeRemark(const Remark &R, const ModuleDiff &Diff) const {
-  DiagnosticResult DR = analyzeRemark(R);
-
-  // attempt to correlate with structural diff data for the specific function
-  for (const FunctionDiff &FD : Diff.Functions) {
-    if (FD.FunctionName == R.FunctionName) {
-      DR.IRDiff = FD;
-      break;
-    }
-  }
-
   return DR;
 }
 
@@ -1290,7 +788,7 @@ DiagnosticEngine::analyze(const std::vector<Remark> &Remarks,
   std::vector<DiagnosticResult> Results;
   Results.reserve(Remarks.size());
 
-  for (const Remark &R : Remarks) {
+  for (const auto &R : Remarks) {
     if (R.Kind == RemarkKind::Applied)
       continue;
     
@@ -1303,18 +801,8 @@ DiagnosticEngine::analyze(const std::vector<Remark> &Remarks,
   }
 
 
-  // sort diagnostics by their projected performance impact (EstimatedSpeedup)
-  // this ensures that the most critical, PGO-weighted bottlenecks appear first
-  // sort diagnostics by their projected performance impact (Impact Score)
   std::stable_sort(Results.begin(), Results.end(),
                    [](const DiagnosticResult &A, const DiagnosticResult &B) {
-                     double ScoreA = std::isfinite(A.EstimatedSpeedup) ? A.EstimatedSpeedup : -1.0;
-                     double ScoreB = std::isfinite(B.EstimatedSpeedup) ? B.EstimatedSpeedup : -1.0;
-
-                     if (ScoreA != ScoreB)
-                       return ScoreA > ScoreB;
-                     
-                     // Tie-breaker: Use severity level (lower enum value is higher severity)
                      return static_cast<int>(A.Severity) <
                             static_cast<int>(B.Severity);
                    });

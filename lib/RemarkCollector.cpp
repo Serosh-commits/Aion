@@ -94,7 +94,7 @@ Remark RemarkCollectorHandler::convertRemark(
   R.Kind = RemarkKind::Analysis;
   R.IsMachine = true;
   R.PassName = "backend";
-  R.RemarkName = DI.getResourceName();
+  R.RemarkName = DI.getResourceName().str();
   R.FunctionName = DI.getFunction().getName().str();
 
   std::string Msg;
@@ -157,8 +157,7 @@ bool RemarkCollectorHandler::handleDiagnostics(
 void RemarkCollector::install(llvm::LLVMContext &Ctx) {
   Ctx.setDiagnosticHandler(
       std::make_unique<RemarkCollectorHandler>(Remarks));
-  // Requesting hotness data from LLVM's Profile-Guided Optimization suite hotness will really rise up i think :)
-  Ctx.setDiagnosticsHotnessRequested(true);
+  Ctx.setDiagnosticsHotnessRequested(false);
 }
 
 // filters collected remarks to return only missed optimizations
