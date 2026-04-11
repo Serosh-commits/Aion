@@ -39,6 +39,7 @@ struct DiagnosticResult {
   SeverityLevel             Severity;
   std::optional<FunctionDiff> IRDiff;
   double                    EstimatedSpeedup;
+  std::optional<float>      Hotness;
   bool                      IsMachine = false;
 
   bool hasFix() const { return !Suggestions.empty(); }
@@ -89,6 +90,12 @@ private:
   void registerGVNPatterns();
   void registerMemCpyOptPatterns();
   void registerLoopInterchangePatterns();
+  void registerLoopAccessPatterns();
+  void registerDevirtPatterns();
+  void registerArgPromotionPatterns();
+  void registerJumpThreadingPatterns();
+  void registerMachinePatterns();
+  void registerPGOPatterns();
   void registerGenericPatterns();
 
   const OptimizationPattern *

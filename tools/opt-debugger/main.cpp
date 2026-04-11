@@ -4,6 +4,9 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/WithColor.h"
@@ -181,7 +184,10 @@ bool hasConflictingOptions() {
 
 // entry point for the opt-debugger executable
 int main(int argc, char **argv) {
-  InitLLVM X(argc, argv);
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+  llvm::PrettyStackTraceProgram X(argc, argv);
+  llvm::llvm_shutdown_obj Y;
+
 
   cl::HideUnrelatedOptions(OptDbgCategory);
   cl::ParseCommandLineOptions(
