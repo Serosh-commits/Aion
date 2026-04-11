@@ -2,6 +2,7 @@
 
 #include "OptDebugger/Support.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -25,7 +26,7 @@ enum class DiffKind : uint8_t {
 struct InstructionRecord {
   std::string Text;
   unsigned    Line;
-  std::string OpcodeName;
+  llvm::SmallString<16> OpcodeName;
   std::string DebugLocStr;
 };
 
