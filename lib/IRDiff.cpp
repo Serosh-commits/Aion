@@ -34,13 +34,9 @@ std::string IRDiffEngine::getInstructionText(const llvm::Instruction &I) {
   I.print(OS);
   OS.flush();
   std::string Result = S;
-  size_t Start = Result.find_first_not_of(" \t\r\n");
-  if (Start == std::string::npos)
-    return "";
-  Result = Result.substr(Start);
-  size_t End = Result.find_last_not_of(" \t\r\n");
-  if (End != std::string::npos)
-    Result = Result.substr(0, End + 1);
+  size_t Pos = Result.find_first_not_of(' ');
+  if (Pos != std::string::npos)
+    Result = Result.substr(Pos);
   return Result;
 }
 
@@ -162,19 +158,35 @@ std::vector<std::pair<int, int>> IRDiffEngine::alignSequences(
   size_t M = A.size();
   size_t N = B.size();
 
+  if (M == 0 && N == 0) return {};
+  if (M == 0) {
+    std::vector<std::pair<int, int>> Res;
+    for (size_t I = 0; I < N; ++I) Res.emplace_back(-1, (int)I);
+    return Res;
+  }
+  if (N == 0) {
+    std::vector<std::pair<int, int>> Res;
+    for (size_t I = 0; I < M; ++I) Res.emplace_back((int)I, -1);
+    return Res;
+  }
+
   std::vector<int> DP((M + 1) * (N + 1), 0);
   auto getDP = [&](size_t I, size_t J) -> int & {
     return DP[I * (N + 1) + J];
   };
 
-  for (size_t I = 1; I <= M; ++I)
-    for (size_t J = 1; J <= N; ++J)
-      if (A[I - 1] == B[J - 1])
+  for (size_t I = 1; I <= M; ++I) {
+    const auto &TextA = A[I - 1];
+    for (size_t J = 1; J <= N; ++J) {
+      if (TextA == B[J - 1])
         getDP(I, J) = getDP(I - 1, J - 1) + 1;
       else
         getDP(I, J) = std::max(getDP(I - 1, J), getDP(I, J - 1));
+    }
+  }
 
   std::vector<std::pair<int, int>> Alignment;
+  Alignment.reserve(std::max(M, N));
   int I = static_cast<int>(M);
   int J = static_cast<int>(N);
 

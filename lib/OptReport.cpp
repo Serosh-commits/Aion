@@ -616,7 +616,7 @@ void HTMLReporter::emitDiagnostic(const DiagnosticResult &D,
   if (D.EstimatedSpeedup > 0.1) {
     std::ostringstream SS;
     SS << std::fixed << std::setprecision(1) << D.EstimatedSpeedup;
-    OS << "      <div class=\"label\" style=\"color:var(--green)\">Estimated Speedup: " << SS.str() << "x</div>\n";
+    OS << "      <div class=\"label\" style=\"color:var(--green)\">Potential speedup if fixed: " << SS.str() << "x</div>\n";
   }
   OS << "    </div>\n";
 

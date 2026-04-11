@@ -3,6 +3,7 @@
 #include "OptDebugger/IRDiff.h"
 #include "OptDebugger/Support.h"
 
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <optional>
@@ -74,9 +75,11 @@ public:
                 const ModuleDiff          &Diff) const;
 
 private:
-  std::vector<OptimizationPattern> Patterns;
+  llvm::StringMap<std::vector<OptimizationPattern>> SpecificPatterns;
+  std::vector<OptimizationPattern> GenericPatterns;
 
   void registerPatterns();
+  void addPattern(OptimizationPattern P);
 
   void registerInliningPatterns();
   void registerLoopVectorizationPatterns();

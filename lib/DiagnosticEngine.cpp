@@ -45,10 +45,17 @@ void DiagnosticEngine::registerPatterns() {
   registerGenericPatterns();
 }
 
+void DiagnosticEngine::addPattern(OptimizationPattern P) {
+  if (P.PassNameSubstr.empty())
+    GenericPatterns.push_back(std::move(P));
+  else
+    SpecificPatterns[P.PassNameSubstr].push_back(std::move(P));
+}
+
 // populates failure heuristics specifically targeting the call-graph inlining phase
 void DiagnosticEngine::registerInliningPatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "hinted to never inline",
       "Inlining rejected: hinted to never inline",
       "The call site was explicitly annotated with [[clang::noinline]] or "
@@ -59,7 +66,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "no profile data",
       "Inlining rejected: missing profile data",
       "The inliner heuristics request profile data to determine if this call site "
@@ -70,7 +77,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::Medium, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "cold callee",
       "Inlining rejected: cold callee",
       "Profile Guided Optimization (PGO) indicates that this function is rarely called, "
@@ -80,7 +87,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       { makeFix("Wait, this is usually correct behavior; if incorrect, check if your PGO workload is representative") },
       SeverityLevel::Low, 0.0
   });
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "too costly",
       "Inlining rejected: callee too large",
       "The inliner evaluated the cost of copying the callee's body into the "
@@ -107,7 +114,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.3
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "recursive",
       "Inlining rejected: recursive function",
       "The inliner never inlines recursive functions because doing so could "
@@ -127,7 +134,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::Medium, 0.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "noinline",
       "Inlining rejected: noinline attribute present",
       "The function has the 'noinline' attribute set, which is an explicit "
@@ -150,7 +157,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.25
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "indirect call",
       "Inlining rejected: indirect call site",
       "The call is made through a function pointer or virtual dispatch, so "
@@ -175,7 +182,7 @@ void DiagnosticEngine::registerInliningPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NotInlined", "unavailable definition",
       "Inlining rejected: callee definition not available",
       "The inliner cannot inline a function whose definition is in a "
@@ -202,7 +209,7 @@ void DiagnosticEngine::registerInliningPatterns() {
 // populates failure heuristics targeting single-loop autovectorization blocks
 void DiagnosticEngine::registerLoopVectorizationPatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "loop contains a divergent operation",
       "Loop vectorization blocked: divergent control flow",
       "The loop body contains control flow (such as conditionals) that cannot be "
@@ -213,7 +220,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "integer division is not vectorizable",
       "Loop vectorization blocked: integer division",
       "The loop body contains an integer division operation, which is highly "
@@ -224,7 +231,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 2.8
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "loop control flow is not understood by vectorizer",
       "Loop vectorization blocked: complex control flow",
       "The Loop Vectorizer cannot understand the control flow graph of the loop. "
@@ -236,7 +243,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "loop with mixed types",
       "Loop vectorization blocked: mixed types",
       "Vectorizing a loop involves operating on a homogeneous set of types. "
@@ -249,7 +256,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Medium, 2.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "loop with uncountable exit",
       "Loop vectorization blocked: uncountable exit",
       "The loop is structured such that its exact trip count or iteration limit "
@@ -260,7 +267,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "cannot vectorize: loop over a pointer IV",
       "Loop vectorization blocked: pointer induction variable",
       "The loop iterates using a pointer as an induction variable instead of "
@@ -271,7 +278,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "store that is conditionally executed",
       "Loop vectorization blocked: conditional store",
       "The loop body contains a conditional store which the target architecture's "
@@ -282,7 +289,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "NotVectorized", "cannot vectorize: optimization disabled",
       "Loop vectorization blocked: optimization disabled",
       "Vectorization was explicitly disabled on this loop (e.g. via #pragma).",
@@ -292,7 +299,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Medium, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "VectorizationNotBeneficial", "not beneficial",
       "Loop vectorization skipped: not beneficial",
       "The vectorizer succeeded in proving legality, but the cost model evaluated "
@@ -303,7 +310,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       { makeFix("Simplify loop arithmetic or use #pragma clang loop vectorize(enable) to override cost model") },
       SeverityLevel::Low, 1.0
   });
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "MissedDetails", "loop not vectorized",
       "Loop vectorization failed",
       "The Loop Vectorizer (LV) attempted to transform the scalar loop into "
@@ -333,7 +340,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "cannot identify array bounds",
       "Loop vectorization blocked: unknown array bounds",
       "The vectorizer requires knowledge of the loop trip count at the point "
@@ -357,7 +364,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::High, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "unsafe dependent memory operations",
       "Loop vectorization blocked: memory dependency / aliasing",
       "The Loop Access Analysis (LAA) detected or could not disprove a "
@@ -385,7 +392,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Critical, 4.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "value that could not be identified as reduction",
       "Loop vectorization blocked: non-reducible accumulator",
       "The vectorizer recognizes a limited set of reduction patterns: sum, "
@@ -408,7 +415,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
       SeverityLevel::Medium, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "call instruction cannot be vectorized",
       "Loop vectorization blocked: non-vectorizable function call",
       "A function call inside the loop body prevents vectorization. To "
@@ -439,7 +446,7 @@ void DiagnosticEngine::registerLoopVectorizationPatterns() {
 // populates failure heuristics targeting straight-line instruction vectorization
 void DiagnosticEngine::registerSLPVectorizationPatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "slp-vectorizer", "NotVectorized", "cannot vectorize scalar instructions",
       "SLP vectorization blocked: non-vectorizable operations",
       "The target operations cannot be mapped to the target's SIMD instructions.",
@@ -449,7 +456,7 @@ void DiagnosticEngine::registerSLPVectorizationPatterns() {
       SeverityLevel::Low, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "slp-vectorizer", "NotVectorized", "not enough uses to vectorize",
       "SLP vectorization skipped: not enough uses",
       "The operations were deemed vectorizable, but bundling them isn't mathematically "
@@ -460,7 +467,7 @@ void DiagnosticEngine::registerSLPVectorizationPatterns() {
       SeverityLevel::Low, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "slp-vectorizer", "NotVectorized", "different types of instructions in the tree",
       "SLP vectorization blocked: mixed instruction types",
       "The SLP vectorizer looks for homogeneous pairs or chains of matching instructions. "
@@ -470,7 +477,7 @@ void DiagnosticEngine::registerSLPVectorizationPatterns() {
       { makeFix("Organize your algorithm to run similar operations adjacently (e.g., group Adds then group Muls)") },
       SeverityLevel::Medium, 1.5
   });
-  Patterns.push_back({
+  addPattern({
       "slp-vectorizer", "NotVectorized", "",
       "SLP vectorization failed",
       "The Superword-Level Parallelism (SLP) vectorizer looks for independent "
@@ -501,7 +508,7 @@ void DiagnosticEngine::registerSLPVectorizationPatterns() {
 // populates failure heuristics targeting scalar-replacement-of-aggregates optimizations
 void DiagnosticEngine::registerSROAPatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "NotPossible", "alloca is escaped",
       "SROA blocked: alloca is escaped",
       "The local variable is explicitly passed by reference or its pointer is returned. "
@@ -512,7 +519,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "NotPossible", "alloca is used with volatile",
       "SROA blocked: volatile accessor",
       "Volatile memory accesses force the compiler to preserve the stack memory "
@@ -523,7 +530,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       SeverityLevel::High, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "NotPossible", "alloca is too large",
       "SROA blocked: alloca is too large",
       "The aggregate structure exceeds SROA's internal cost threshold for scalar expansion.",
@@ -533,7 +540,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       SeverityLevel::Low, 0.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "NotPossible", "alloca is used with a select and cannot be promoted",
       "SROA blocked: conditional pointer selection (select inst)",
       "The program conditionally selects pointers to different allocations. "
@@ -543,7 +550,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       { makeFix("Rewrite conditionals to select the loaded scalar values rather than selecting the pointers themselves") },
       SeverityLevel::Medium, 1.0
   });
-  Patterns.push_back({
+  addPattern({
       "sroa", "CannotSROAElement", "",
       "SROA failed: aggregate cannot be decomposed",
       "Scalar Replacement of Aggregates (SROA) decomposes alloca'd struct or "
@@ -571,7 +578,7 @@ void DiagnosticEngine::registerSROAPatterns() {
       SeverityLevel::High, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "sroa", "", "address taken",
       "SROA failed: address of local variable is taken",
       "When a local variable's address is taken (e.g., '&localVar'), LLVM "
@@ -597,7 +604,7 @@ void DiagnosticEngine::registerSROAPatterns() {
 // populates failure heuristics targeting loop unrolling and interleaving passes
 void DiagnosticEngine::registerLoopUnrollPatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "NotUnrolled", "loop not suitable for unrolling",
       "Loop unroll skipped: not suitable",
       "The loop lacks the necessary canonical structure (induction variables, clear exits) "
@@ -608,7 +615,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
       SeverityLevel::Medium, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "NotUnrolled", "could not determine number of loop iterations",
       "Loop unroll skipped: indeterminate iterations",
       "The compiler couldn't statically prove the number of times the loop iterates, "
@@ -619,7 +626,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
       SeverityLevel::Medium, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "PartialUnrolled", "",
       "Loop unroll: Partially Unrolled",
       "The loop was partially unrolled by a fixed factor, but not completely eliminated. "
@@ -630,7 +637,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
       { makeFix("If full unrolling is strictly necessary, supply #pragma clang loop unroll(full)") },
       SeverityLevel::Low, 0.5
   });
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "FullUnrollAssumed", "unknown trip count",
       "Loop unrolling skipped: trip count not statically known",
       "Full loop unrolling requires the loop to execute a fixed, statically "
@@ -655,7 +662,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
       SeverityLevel::Low, 1.15
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-unroll", "", "instruction count too high",
       "Loop unrolling rejected: code size would be too large",
       "LLVM's loop unroller uses a cost model to estimate the instruction "
@@ -681,7 +688,7 @@ void DiagnosticEngine::registerLoopUnrollPatterns() {
 
 // populates failure heuristics targeting tail/sibling call eliminations
 void DiagnosticEngine::registerTailCallPatterns() {
-  Patterns.push_back({
+  addPattern({
       "tailcallelim", "UnableToTransform", "",
       "Tail call elimination failed",
       "Tail call elimination (TCE) converts a recursive call in tail position "
@@ -712,7 +719,7 @@ void DiagnosticEngine::registerTailCallPatterns() {
 
 // populates failure heuristics targeting global value numbering redundancy elimination
 void DiagnosticEngine::registerGVNPatterns() {
-  Patterns.push_back({
+  addPattern({
       "gvn", "LoadElim", "",
       "GVN failed to eliminate redundant load",
       "Global Value Numbering (GVN) eliminates redundant loads by proving "
@@ -739,7 +746,7 @@ void DiagnosticEngine::registerGVNPatterns() {
 
 // populates failure heuristics targeting implicit memcpy instantiation passes
 void DiagnosticEngine::registerMemCpyOptPatterns() {
-  Patterns.push_back({
+  addPattern({
       "memcpyopt", "", "",
       "MemCpyOpt failed to optimize memory copy",
       "MemCpyOpt looks for patterns like a series of scalar stores followed "
@@ -766,7 +773,7 @@ void DiagnosticEngine::registerMemCpyOptPatterns() {
 // populates failure heuristics targeting complex loop interchange matrix optimizations
 void DiagnosticEngine::registerLoopInterchangePatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "loop-interchange", "NotInterchanged", "not profitable",
       "Loop interchange skipped: not profitable",
       "Data dependence analysis verified the interchange is safe, but the cost model "
@@ -778,7 +785,7 @@ void DiagnosticEngine::registerLoopInterchangePatterns() {
       SeverityLevel::Low, 0.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-interchange", "NotInterchanged", "outer loop has dependences",
       "Loop interchange blocked: outer loop dependence",
       "A dependence distance restricts the outer and inner dimensions from being legally "
@@ -789,7 +796,7 @@ void DiagnosticEngine::registerLoopInterchangePatterns() {
       SeverityLevel::Medium, 2.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-interchange", "NotInterchanged", "not tightly nested",
       "Loop interchange blocked: not tightly nested",
       "Loop interchange strictly requires a perfect nest (no auxiliary statements "
@@ -799,7 +806,7 @@ void DiagnosticEngine::registerLoopInterchangePatterns() {
       { makeFix("Refactor any auxiliary assignments out of the inter-loop boundary scope") },
       SeverityLevel::Medium, 1.5
   });
-  Patterns.push_back({
+  addPattern({
       "loop-interchange", "", "",
       "Loop interchange failed",
       "Loop interchange reorders nested loops to improve memory locality "
@@ -827,7 +834,7 @@ void DiagnosticEngine::registerLoopInterchangePatterns() {
 
 // populates generalized failure heuristics that apply across multiple common llvm passes
 void DiagnosticEngine::registerGenericPatterns() {
-  Patterns.push_back({
+  addPattern({
       "", "NeverInline", "",
       "Optimization blocked by attribute",
       "An explicit attribute on the function or call site is preventing "
@@ -844,7 +851,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::High, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "", "", "optnone",
       "Optimization skipped: optnone function",
       "The function was compiled with -O0 or has the __attribute__((optnone)) "
@@ -863,7 +870,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::Critical, 2.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "gvn", "LoadClobbered", "",
       "Global Value Numbering failed: load clobbered by store",
       "The optimizer found a load that could potentially be replaced by a "
@@ -881,7 +888,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::Medium, 1.2
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-vectorize", "", "Cannot vectorize potentially faulting early exit loop",
       "Loop Vectorization failed: Non-canonical early exit",
       "The loop contains a conditional 'break', 'return', or 'goto' that "
@@ -903,7 +910,7 @@ void DiagnosticEngine::registerGenericPatterns() {
       SeverityLevel::High, 3.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "inline", "NoDefinition", "",
       "Inlining failed: No function definition available",
       "The inliner cannot inline a function if its body is not available in "
@@ -922,7 +929,7 @@ void DiagnosticEngine::registerGenericPatterns() {
 }
 
 void DiagnosticEngine::registerMachinePatterns() {
-  Patterns.push_back({
+  addPattern({
       "regalloc", "Spill", "",
       "High Register Pressure: Multiple spills detected",
       "The register allocator could not find enough physical registers to hold "
@@ -942,7 +949,7 @@ void DiagnosticEngine::registerMachinePatterns() {
       SeverityLevel::High, 0.8
   });
 
-  Patterns.push_back({
+  addPattern({
       "prologepilog", "StackSize", "",
       "Excessive Stack Frame Size recorded",
       "The function requires a large stack frame, which can impact cache locality "
@@ -962,7 +969,7 @@ void DiagnosticEngine::registerMachinePatterns() {
 
 void DiagnosticEngine::registerPGOPatterns() {
 
-  Patterns.push_back({
+  addPattern({
       "pgo-instrumentation", "MissingProf", "",
       "PGO Instrumentation: Missing Profile",
       "A profile file is loaded and in use, but the runtime samples did not include "
@@ -973,7 +980,7 @@ void DiagnosticEngine::registerPGOPatterns() {
       SeverityLevel::Medium, 1.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "pgo-instrumentation", "InsufficientSamples", "",
       "PGO Instrumentation: Insufficient Samples",
       "Profile Guided Optimization lacks adequate data points to make mathematically "
@@ -983,7 +990,7 @@ void DiagnosticEngine::registerPGOPatterns() {
       { makeFix("Run the profile-instrumented program longer or using larger, sustained input workloads") },
       SeverityLevel::Medium, 1.0
   });
-  Patterns.push_back({
+  addPattern({
       "pgo-icall-prom", "NotInlined", "",
       "PGO-driven devirtualization target found",
       "This indirect call site is identified as 'hot' by PGO data, but it "
@@ -1006,7 +1013,7 @@ void DiagnosticEngine::registerPGOPatterns() {
       SeverityLevel::Critical, 2.5
   });
 
-  Patterns.push_back({
+  addPattern({
       "pgo-instr-use", "Mismatch", "",
       "PGO Metadata Mismatch: Local profile data stale",
       "The compiler found a discrepancy between the provided profile data and "
@@ -1031,7 +1038,7 @@ void DiagnosticEngine::registerPGOPatterns() {
 // executes an o(n) heuristic search against the registered pattern database to classify a raw remark
 
 void DiagnosticEngine::registerLoopAccessPatterns() {
-  Patterns.push_back({
+  addPattern({
       "loop-accesses", "UnsafeMemDep", "unsafe dependent memory operations",
       "Memory Dependency Analysis: Unsafe dependent memory Operations",
       "Loop Access Analysis could not securely confirm that memory loads and stores "
@@ -1043,7 +1050,7 @@ void DiagnosticEngine::registerLoopAccessPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-accesses", "Dependence", "",
       "Memory Dependency Analysis: Dependence found",
       "A specific Read-After-Write (RAW), Write-After-Read (WAR), or Write-After-Write (WAW) "
@@ -1054,7 +1061,7 @@ void DiagnosticEngine::registerLoopAccessPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "loop-accesses", "SymbolicStride", "non-constant stride",
       "Memory Dependency Analysis: Non-constant symbolic stride",
       "The array or pointer is traversed using an offset that the compiler cannot trace "
@@ -1067,7 +1074,7 @@ void DiagnosticEngine::registerLoopAccessPatterns() {
 }
 
 void DiagnosticEngine::registerDevirtPatterns() {
-  Patterns.push_back({
+  addPattern({
       "wholeprogramdevirt", "UnableToDevirt", "",
       "WholeProgramDevirt blocked: Unable to Devirtualize",
       "The optimizer could not statically resolve all potential virtual overrides "
@@ -1082,7 +1089,7 @@ void DiagnosticEngine::registerDevirtPatterns() {
       SeverityLevel::High, 3.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "wholeprogramdevirt", "NotDevirt", "",
       "WholeProgramDevirt blocked: No single target",
       "Virtual call resolves to more than one possible implementation target. "
@@ -1095,7 +1102,7 @@ void DiagnosticEngine::registerDevirtPatterns() {
 }
 
 void DiagnosticEngine::registerArgPromotionPatterns() {
-  Patterns.push_back({
+  addPattern({
       "argpromotion", "NotPromoted", "argument cannot be promoted to register",
       "Argument Promotion skipped: Non-promotable",
       "The function parameter relies on memory semantics that are ineligible to "
@@ -1106,7 +1113,7 @@ void DiagnosticEngine::registerArgPromotionPatterns() {
       SeverityLevel::Medium, 1.0
   });
 
-  Patterns.push_back({
+  addPattern({
       "argpromotion", "NotPromoted", "aliasing prevents promotion",
       "Argument Promotion blocked: Aliasing detected",
       "The optimizer suspects that the pointer argument might alias with "
@@ -1120,7 +1127,7 @@ void DiagnosticEngine::registerArgPromotionPatterns() {
 }
 
 void DiagnosticEngine::registerJumpThreadingPatterns() {
-  Patterns.push_back({
+  addPattern({
       "jump-threading", "NotJumpThreaded", "",
       "Jump Threading blocked",
       "Jump threading relies on tracing variable states out of previous blocks "
@@ -1137,30 +1144,45 @@ DiagnosticEngine::findMatchingPattern(const Remark &R) const {
   const OptimizationPattern *Best = nullptr;
   int BestScore = -1;
 
-  for (const OptimizationPattern &P : Patterns) {
-    int Score = 0;
+  auto searchIn = [&](const std::vector<OptimizationPattern> &PatternList) {
+    for (const OptimizationPattern &P : PatternList) {
+      int Score = 0;
 
-    if (!P.PassNameSubstr.empty()) {
-      if (!matchesPattern(R.PassName, P.PassNameSubstr))
-        continue;
-      Score += 2;
+      if (!P.PassNameSubstr.empty()) {
+        if (!matchesPattern(R.PassName, P.PassNameSubstr))
+          continue;
+        Score += 2;
+      }
+
+      if (!P.RemarkNameSubstr.empty()) {
+        if (!matchesPattern(R.RemarkName, P.RemarkNameSubstr))
+          continue;
+        Score += 3;
+      }
+
+      if (!P.MessageSubstr.empty()) {
+        if (!matchesPattern(R.Message, P.MessageSubstr))
+          continue;
+        Score += 4;
+      }
+
+      if (Score > BestScore) {
+        BestScore = Score;
+        Best = &P;
+      }
     }
+  };
 
-    if (!P.RemarkNameSubstr.empty()) {
-      if (!matchesPattern(R.RemarkName, P.RemarkNameSubstr))
-        continue;
-      Score += 3;
-    }
+  searchIn(GenericPatterns);
 
-    if (!P.MessageSubstr.empty()) {
-      if (!matchesPattern(R.Message, P.MessageSubstr))
-        continue;
-      Score += 4;
-    }
-
-    if (Score > BestScore) {
-      BestScore = Score;
-      Best = &P;
+  auto It = SpecificPatterns.find(R.PassName);
+  if (It != SpecificPatterns.end()) {
+    searchIn(It->second);
+  } else {
+    for (const auto &Entry : SpecificPatterns) {
+      if (matchesPattern(R.PassName, Entry.first())) {
+        searchIn(Entry.second);
+      }
     }
   }
 
