@@ -3,6 +3,7 @@
 #include "OptDebugger/IRDiff.h"
 #include "OptDebugger/Support.h"
 
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <optional>
@@ -38,7 +39,6 @@ struct DiagnosticResult {
   SeverityLevel             Severity;
   std::optional<FunctionDiff> IRDiff;
   double                    EstimatedSpeedup;
-  std::optional<float>      Hotness;
   bool                      IsMachine = false;
 
   bool hasFix() const { return !Suggestions.empty(); }
@@ -74,9 +74,11 @@ public:
                 const ModuleDiff          &Diff) const;
 
 private:
-  std::vector<OptimizationPattern> Patterns;
+  std::vector<OptimizationPattern> GenericPatterns;
+  llvm::StringMap<std::vector<OptimizationPattern>> SpecificPatterns;
 
   void registerPatterns();
+  void addPattern(OptimizationPattern P);
 
   void registerInliningPatterns();
   void registerLoopVectorizationPatterns();
@@ -87,12 +89,6 @@ private:
   void registerGVNPatterns();
   void registerMemCpyOptPatterns();
   void registerLoopInterchangePatterns();
-  void registerLoopAccessPatterns();
-  void registerDevirtPatterns();
-  void registerArgPromotionPatterns();
-  void registerJumpThreadingPatterns();
-  void registerMachinePatterns();
-  void registerPGOPatterns();
   void registerGenericPatterns();
 
   const OptimizationPattern *

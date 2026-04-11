@@ -176,13 +176,10 @@ void TerminalReporter::printDiagnosticHeader(const DiagnosticResult &D) {
     OS << "  Location : " << D.Location.format() << "\n";
 
   if (D.EstimatedSpeedup > 0.0) {
-    OS << "  Impact Score : ";
+    OS << "  Potential speedup if fixed: ";
     if (Cfg.UseColor) OS.changeColor(llvm::raw_ostream::GREEN);
-    OS << llvm::format("%.2f", D.EstimatedSpeedup);
+    OS << llvm::format("%.1fx", D.EstimatedSpeedup);
     if (Cfg.UseColor) OS.resetColor();
-    if (D.Hotness) {
-       OS << " (PGO-weighted, hotness: " << llvm::format("%.1f", *D.Hotness) << ")";
-    }
     OS << "\n";
   }
 }
@@ -609,8 +606,6 @@ void HTMLReporter::emitDiagnostic(const DiagnosticResult &D,
     OS << "    <div class=\"label-group\">\n";
   if (D.IsMachine)
     OS << "      <div class=\"label\" style=\"background:var(--cobalt);color:white\">BACKEND</div>\n";
-  if (D.Hotness)
-    OS << "      <div class=\"label\" style=\"background:var(--purple);color:white\">HOT: " << llvm::format("%.1f", *D.Hotness) << "</div>\n";
   OS << "      <div class=\"label\">" << escapeHTML(D.PassName) << "</div>\n";
   OS << "      <div class=\"label\">@" << escapeHTML(D.FunctionName) << "</div>\n";
   if (D.EstimatedSpeedup > 0.1) {
