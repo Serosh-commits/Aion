@@ -39,6 +39,7 @@ void DiagnosticEngine::registerPatterns() {
   registerGVNPatterns();
   registerMemCpyOptPatterns();
   registerLoopInterchangePatterns();
+  registerLICMPatterns();
   registerGenericPatterns();
 }
 
@@ -808,6 +809,43 @@ DiagnosticEngine::analyze(const std::vector<Remark> &Remarks,
                    });
 
   return Results;
+}
+
+void DiagnosticEngine::registerLICMPatterns() {
+  addPattern({
+      "licm", "LoadWithLoopInvariantAddressInvalidated", "",
+      "LICM failed: Loop-invariant load invalidated",
+      "Loop Invariant Code Motion (LICM) found a load from a constant address, "
+      "but it cannot safely move it out of the loop because another store inside "
+      "the loop might modify that same memory location. This is often caused "
+      "by pointer aliasing.",
+      "A store in the loop body potentially clobbers the loop-invariant memory location.",
+      "The optimizer wanted to hoist the load out of the loop to avoid "
+      "repeated memory accesses in every iteration.",
+      {
+        makeFix("Use __restrict__ on pointers to prove the store does not alias with the load"),
+        makeFix("Ensure that the loop does not contain any instructions that could modify relevant state"),
+      },
+      SeverityLevel::Medium, 1.2
+  });
+
+  addPattern({
+      "licm", "", "failed to sink or hoist",
+      "LICM failed: Hoisting/Sinking blocked",
+      "Loop Invariant Code Motion (LICM) failed to move an instruction "
+      "out of the loop because of potential aliasing or side effects. "
+      "If an instruction might trap or has unknown memory dependencies, "
+      "it must remain inside the loop to preserve program semantics.",
+      "Instruction has side effects or aliasing prevents safe hoisting.",
+      "The optimizer wanted to move this redundant calculation out of the "
+      "loop body to run it only once per loop entry.",
+      {
+        makeFix("Mark functions called in the loop as 'pure' or 'const'"),
+        makeFix("Use __restrict__ on pointers to prove they don't alias with "
+                "the invariant memory location"),
+      },
+      SeverityLevel::Medium, 1.2
+  });
 }
 
 // maps internal severity enums to human-readable strings for console output

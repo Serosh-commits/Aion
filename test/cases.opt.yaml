@@ -97,6 +97,83 @@ Args:
     DebugLoc:        { File: 'test/cases.cpp', Line: 37, Column: 0 }
   - String:          ' because its definition is unavailable'
 ...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 25 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 16 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 16 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 25 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 16 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          'load of type '
+  - Type:            i32
+  - String:          ' not eliminated'
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     store
+    DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 14 }
+...
+--- !Missed
+Pass:            gvn
+Name:            LoadClobbered
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 25 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          'load of type '
+  - Type:            i32
+  - String:          ' not eliminated'
+  - String:          ' in favor of '
+  - OtherAccess:     load
+    DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 25 }
+  - String:          ' because it is clobbered by '
+  - ClobberedBy:     store
+    DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 14 }
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 16 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 25 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
 --- !Analysis
 Pass:            loop-vectorize
 Name:            UnsafeDep
@@ -137,15 +214,6 @@ Args:
   - String:          'loop not vectorized: '
   - String:          value that could not be identified as reduction is used outside the loop
 ...
---- !Analysis
-Pass:            loop-vectorize
-Name:            PotentiallyFaultingEarlyExitLoop
-DebugLoc:        { File: 'test/cases.cpp', Line: 21, Column: 5 }
-Function:        _Z14loop_with_exitPiii
-Args:
-  - String:          'loop not vectorized: '
-  - String:          Cannot vectorize potentially faulting early exit loop
-...
 --- !Missed
 Pass:            loop-vectorize
 Name:            MissedDetails
@@ -153,4 +221,37 @@ DebugLoc:        { File: 'test/cases.cpp', Line: 21, Column: 5 }
 Function:        _Z14loop_with_exitPiii
 Args:
   - String:          loop not vectorized
+...
+--- !Analysis
+Pass:            loop-vectorize
+Name:            UnsupportedUncountableLoop
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 5 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          'loop not vectorized: '
+  - String:          Cannot vectorize uncountable loop
+...
+--- !Missed
+Pass:            loop-vectorize
+Name:            MissedDetails
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 5 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          loop not vectorized
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 45, Column: 16 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
+...
+--- !Missed
+Pass:            licm
+Name:            LoadWithLoopInvariantAddressInvalidated
+DebugLoc:        { File: 'test/cases.cpp', Line: 44, Column: 25 }
+Function:        _Z9licm_failPiS_S_
+Args:
+  - String:          failed to move load with loop-invariant address because the loop may invalidate its value
 ...

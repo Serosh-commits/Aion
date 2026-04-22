@@ -89,6 +89,7 @@ private:
   void registerGVNPatterns();
   void registerMemCpyOptPatterns();
   void registerLoopInterchangePatterns();
+  void registerLICMPatterns();
   void registerGenericPatterns();
 
   const OptimizationPattern *

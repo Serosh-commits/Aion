@@ -38,3 +38,10 @@ void sroa_fail() {
     int x = 42;
     escape(&x); // Address taken prevents SROA/mem2reg
 }
+
+// 6. LICM: Aliasing prevents hoisting
+void licm_fail(int *a, int *b, int *n) {
+    for (int i = 0; i < *n; i++) {
+        a[i] = *b + i; // *b is loop invariant but might be aliased by a[i]
+    }
+}

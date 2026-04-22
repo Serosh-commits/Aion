@@ -6,6 +6,7 @@ find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_definitions(${LLVM_DEFINITIONS})
+link_directories(${LLVM_LIBRARY_DIRS})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +23,5 @@ add_library(OptDebugger STATIC ${LIB_SOURCES})
 add_executable(opt-debugger tools/opt-debugger/main.cpp)
 
 # Confirmed built components in previous turns
-llvm_map_components_to_libnames(llvm_libs Core Support IRReader Analysis ScalarOpts TransformUtils Remarks BitReader InstCombine TargetParser AggressiveInstCombine)
-target_link_libraries(OptDebugger PUBLIC ${llvm_libs})
+target_link_libraries(OptDebugger PUBLIC LLVM)
 target_link_libraries(opt-debugger PRIVATE OptDebugger)
